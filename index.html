@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>Folio</title>
-  <meta name="description" content="A private, offline PDF book reader with highlights and bookmarks.">
+  <meta name="description" content="A private, offline PDF book reader. Turn pages sideways, keep your books in albums.">
   <meta name="theme-color" content="#f6f3ee" id="theme-color">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -20,6 +20,7 @@
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
       <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+      <symbol id="i-next" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
       <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
       <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></symbol>
@@ -28,50 +29,74 @@
       <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></symbol>
       <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V5h11v2M9.5 5v14M7 19h5M14 12v-1h7v1M17.5 11v8M16 19h3"/></symbol>
       <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
-      <symbol id="i-note" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
-      <symbol id="i-copy" viewBox="0 0 24 24"><rect width="13" height="13" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
       <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
-      <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></symbol>
-      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
-      <symbol id="i-fit" viewBox="0 0 24 24"><path d="M21 12H3M7 8l-4 4 4 4M17 8l4 4-4 4"/></symbol>
+      <symbol id="i-fit" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
       <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></symbol>
       <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
       <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
-      <symbol id="i-highlighter" viewBox="0 0 24 24"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></symbol>
       <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></symbol>
       <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></symbol>
+      <symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.7-.9l-.8-1.2A2 2 0 0 0 7.9 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2zM12 10v6M9 13h6"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="i-sort" viewBox="0 0 24 24"><path d="m3 8 4-4 4 4M7 4v16M21 16l-4 4-4-4M17 20V4"/></symbol>
+      <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
     </defs>
   </svg>
 
   <!-- ============ LIBRARY ============ -->
   <section id="library" class="view">
-    <header class="lib-header">
-      <div class="lib-title">
-        <h1>Library</h1>
-        <p id="lib-sub" class="muted"></p>
-      </div>
-      <div class="lib-actions">
-        <button class="icon-btn" id="lib-settings-btn" aria-label="Settings"><svg><use href="#i-sliders"/></svg></button>
-        <button class="btn primary" id="add-book-btn"><svg><use href="#i-plus"/></svg><span>Add book</span></button>
-      </div>
-    </header>
+    <div class="lib-wrap">
+      <header class="lib-header">
+        <button class="icon-btn" id="album-back" aria-label="Back to library" hidden><svg><use href="#i-back"/></svg></button>
+        <div class="lib-title">
+          <h1 id="lib-title">Library</h1>
+          <p id="lib-sub" class="muted"></p>
+        </div>
+        <div class="lib-actions">
+          <button class="icon-btn" id="album-menu-btn" aria-label="Album options" hidden><svg><use href="#i-more"/></svg></button>
+          <button class="icon-btn" id="lib-settings-btn" aria-label="Settings"><svg><use href="#i-sliders"/></svg></button>
+          <button class="btn primary" id="add-book-btn"><svg><use href="#i-plus"/></svg><span>Add book</span></button>
+        </div>
+      </header>
 
-    <div id="continue" class="continue" hidden></div>
+      <div id="continue" class="continue" role="button" tabindex="0" hidden></div>
 
-    <div class="lib-toolbar" id="lib-toolbar" hidden>
-      <div class="search-field">
-        <svg><use href="#i-search"/></svg>
-        <input id="lib-filter" type="search" placeholder="Search your library" autocomplete="off">
+      <section id="albums-section" class="albums" hidden>
+        <div class="section-head"><h2>Albums</h2></div>
+        <div id="album-row" class="album-row"></div>
+      </section>
+
+      <div class="lib-toolbar" id="lib-toolbar" hidden>
+        <div class="search-field">
+          <svg><use href="#i-search"/></svg>
+          <input id="lib-filter" type="search" placeholder="Search your library" autocomplete="off" aria-label="Search your library">
+        </div>
+      </div>
+
+      <div class="section-head" id="books-head" hidden>
+        <h2 id="books-title">Books</h2>
+        <div class="head-actions">
+          <button class="btn ghost small" id="sort-btn"><svg><use href="#i-sort"/></svg><span id="sort-label">Recently read</span></button>
+          <button class="btn ghost small" id="select-btn"><span>Select</span></button>
+        </div>
+      </div>
+
+      <div id="book-grid" class="book-grid"></div>
+
+      <div id="empty" class="empty" hidden>
+        <div class="empty-art"><svg><use href="#i-book"/></svg></div>
+        <h2>Your shelf is empty</h2>
+        <p class="muted">Add a PDF from your Files app, Drive, or downloads. Folio reads what each one is and helps you keep them in albums. Everything stays on this device and works offline.</p>
+        <button class="btn primary big" id="empty-add-btn"><svg><use href="#i-upload"/></svg><span>Add a PDF</span></button>
       </div>
     </div>
 
-    <div id="book-grid" class="book-grid"></div>
-
-    <div id="empty" class="empty" hidden>
-      <div class="empty-art"><svg><use href="#i-book"/></svg></div>
-      <h2>Your shelf is empty</h2>
-      <p class="muted">Add a PDF from your Files app, Drive, or downloads. It stays on this device and works offline.</p>
-      <button class="btn primary big" id="empty-add-btn"><svg><use href="#i-upload"/></svg><span>Add a PDF</span></button>
+    <div id="select-bar" class="select-bar" hidden>
+      <span id="sel-count">Select books</span>
+      <div class="grow"></div>
+      <button class="btn" id="sel-move" data-needs-pick><svg><use href="#i-folder"/></svg><span>Move</span></button>
+      <button class="btn danger-soft" id="sel-remove" data-needs-pick><svg><use href="#i-trash"/></svg><span>Remove</span></button>
     </div>
 
     <input type="file" id="file-input" accept="application/pdf,.pdf" multiple hidden>
@@ -87,20 +112,24 @@
         <div id="chapter-title" class="chapter-text"></div>
       </div>
       <div class="topbar-actions">
-        <button class="icon-btn" id="search-btn" aria-label="Search"><svg><use href="#i-search"/></svg></button>
-        <button class="icon-btn" id="panel-btn" aria-label="Contents, bookmarks and highlights"><svg><use href="#i-list"/></svg></button>
+        <button class="icon-btn" id="search-btn" aria-label="Search in book"><svg><use href="#i-search"/></svg></button>
+        <button class="icon-btn" id="panel-btn" aria-label="Contents and bookmarks"><svg><use href="#i-list"/></svg></button>
         <button class="icon-btn" id="settings-btn" aria-label="Display settings"><svg><use href="#i-type"/></svg></button>
         <button class="icon-btn bm-btn" id="bookmark-btn" aria-label="Bookmark this page"><svg><use href="#i-bookmark"/></svg></button>
       </div>
     </header>
 
-    <main id="viewer" class="viewer" tabindex="-1">
-      <div id="pages" class="pages"></div>
+    <main id="stage" class="stage" tabindex="-1" aria-label="Book pages">
+      <div id="track" class="track"></div>
     </main>
+
+    <button class="edge-nav prev" id="nav-prev" aria-label="Previous page"><svg><use href="#i-back"/></svg></button>
+    <button class="edge-nav next" id="nav-next" aria-label="Next page"><svg><use href="#i-next"/></svg></button>
+    <div class="mini-status" id="mini-status" aria-hidden="true"></div>
 
     <div id="loading" class="loading" hidden><div class="spinner"></div><span>Opening…</span></div>
 
-    <button id="backjump" class="backjump" hidden><svg><use href="#i-undo"/></svg><span></span></button>
+    <button id="backjump" class="backjump" hidden><svg><use href="#i-back"/></svg><span></span></button>
 
     <footer class="bottombar" id="bottombar">
       <div class="scrub-preview" id="scrub-preview" hidden></div>
@@ -111,32 +140,6 @@
       </div>
     </footer>
 
-    <!-- Selection toolbar -->
-    <div id="sel-toolbar" class="floating sel-toolbar" hidden>
-      <button class="swatch" data-color="yellow" aria-label="Yellow highlight"></button>
-      <button class="swatch" data-color="green" aria-label="Green highlight"></button>
-      <button class="swatch" data-color="blue" aria-label="Blue highlight"></button>
-      <button class="swatch" data-color="pink" aria-label="Pink highlight"></button>
-      <span class="divider"></span>
-      <button class="icon-btn small" data-action="note" aria-label="Highlight and add note"><svg><use href="#i-note"/></svg></button>
-    </div>
-
-    <!-- Existing highlight popover -->
-    <div id="hl-popover" class="floating hl-popover" hidden>
-      <div class="row">
-        <button class="swatch" data-color="yellow" aria-label="Yellow"></button>
-        <button class="swatch" data-color="green" aria-label="Green"></button>
-        <button class="swatch" data-color="blue" aria-label="Blue"></button>
-        <button class="swatch" data-color="pink" aria-label="Pink"></button>
-      </div>
-      <div class="row actions">
-        <button data-action="note"><svg><use href="#i-note"/></svg><span>Note</span></button>
-        <button data-action="copy"><svg><use href="#i-copy"/></svg><span>Copy</span></button>
-        <button data-action="delete" class="danger"><svg><use href="#i-trash"/></svg><span>Remove</span></button>
-      </div>
-      <div class="pop-note" hidden></div>
-    </div>
-
     <!-- Side panel -->
     <div id="scrim" class="scrim" hidden></div>
     <aside id="panel" class="panel" aria-hidden="true">
@@ -144,7 +147,6 @@
         <div class="tabs" role="tablist">
           <button role="tab" data-tab="toc">Contents</button>
           <button role="tab" data-tab="bookmarks">Bookmarks</button>
-          <button role="tab" data-tab="highlights">Highlights</button>
           <button role="tab" data-tab="search">Search</button>
         </div>
         <button class="icon-btn" id="panel-close" aria-label="Close"><svg><use href="#i-x"/></svg></button>
@@ -152,24 +154,10 @@
       <div class="panel-body">
         <div class="tab-pane" data-pane="toc"><ul id="toc-list" class="list"></ul></div>
         <div class="tab-pane" data-pane="bookmarks"><ul id="bm-list" class="list"></ul></div>
-        <div class="tab-pane" data-pane="highlights">
-          <div class="pane-tools">
-            <div class="chip-row" id="hl-filter">
-              <button class="chip active" data-color="all">All</button>
-              <button class="chip dot" data-color="yellow" aria-label="Yellow"></button>
-              <button class="chip dot" data-color="green" aria-label="Green"></button>
-              <button class="chip dot" data-color="blue" aria-label="Blue"></button>
-              <button class="chip dot" data-color="pink" aria-label="Pink"></button>
-              <button class="chip" data-color="notes">Notes</button>
-            </div>
-            <button class="btn ghost small" id="export-hl"><svg><use href="#i-share"/></svg><span>Export</span></button>
-          </div>
-          <ul id="hl-list" class="list"></ul>
-        </div>
         <div class="tab-pane" data-pane="search">
           <form id="search-form" class="search-field big">
             <svg><use href="#i-search"/></svg>
-            <input id="search-input" type="search" placeholder="Search in book" autocomplete="off" enterkeyhint="search">
+            <input id="search-input" type="search" placeholder="Search in book" autocomplete="off" enterkeyhint="search" aria-label="Search in book">
           </form>
           <div id="search-status" class="muted small pad"></div>
           <ul id="search-list" class="list"></ul>
@@ -190,23 +178,44 @@
           </div>
         </div>
         <div class="sheet-row">
+          <span class="label">Pages</span>
+          <div class="segmented" id="layout-seg">
+            <button data-layout="auto">Auto</button>
+            <button data-layout="single">Single</button>
+            <button data-layout="double">Spread</button>
+          </div>
+        </div>
+        <div class="sheet-row">
           <span class="label">Zoom</span>
           <div class="zoom-ctl">
             <button class="icon-btn" id="zoom-out" aria-label="Zoom out"><svg><use href="#i-minus"/></svg></button>
             <span id="zoom-label">100%</span>
             <button class="icon-btn" id="zoom-in" aria-label="Zoom in"><svg><use href="#i-plus"/></svg></button>
-            <button class="btn ghost small" id="zoom-fit"><svg><use href="#i-fit"/></svg><span>Fit width</span></button>
+            <button class="btn ghost small" id="zoom-fit"><svg><use href="#i-fit"/></svg><span>Fit</span></button>
           </div>
         </div>
         <label class="sheet-row toggle"><span class="label">Dark pages in dark theme</span><input type="checkbox" id="opt-invert"><span class="switch"></span></label>
         <label class="sheet-row toggle"><span class="label">Tap left / right edge to turn page</span><input type="checkbox" id="opt-tapturn"><span class="switch"></span></label>
+        <label class="sheet-row toggle"><span class="label">Hide bars when turning pages</span><input type="checkbox" id="opt-autohide"><span class="switch"></span></label>
         <label class="sheet-row toggle"><span class="label">Keep screen on while reading</span><input type="checkbox" id="opt-awake"><span class="switch"></span></label>
-        <label class="sheet-row toggle"><span class="label">Hide bars while scrolling</span><input type="checkbox" id="opt-autohide"><span class="switch"></span></label>
       </div>
     </div>
   </section>
 
   <!-- ============ SHARED ============ -->
+  <div id="intake" class="modal sticky" hidden>
+    <div class="modal-card intake-card">
+      <div class="modal-head"><h3 id="intake-title">New books</h3><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+      <p class="muted small" id="intake-intro"></p>
+      <button class="btn small suggest-all" id="intake-suggest"><svg><use href="#i-sparkle"/></svg><span>Use all suggestions</span></button>
+      <div id="intake-list" class="intake-list"></div>
+      <div class="btn-row end intake-actions">
+        <button class="btn" id="intake-cancel">Skip</button>
+        <button class="btn primary" id="intake-done">Done</button>
+      </div>
+    </div>
+  </div>
+
   <div id="lib-settings" class="modal" hidden>
     <div class="modal-card">
       <div class="modal-head"><h3>Settings</h3><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
@@ -220,9 +229,10 @@
         </div>
       </div>
       <label class="sheet-row toggle"><span class="label">Reopen my last book when Folio starts</span><input type="checkbox" id="opt-resume"><span class="switch"></span></label>
+      <label class="sheet-row toggle"><span class="label">Ask where to file new books<small>When off, a new book goes into a matching album if you have one, otherwise Unsorted.</small></span><input type="checkbox" id="opt-review"><span class="switch"></span></label>
       <div class="sheet-section">
         <h4>Backup</h4>
-        <p class="muted small">Saves your highlights, notes, bookmarks and reading positions (not the PDFs) to a small file. Restore it on any device; annotations attach to the same PDF when you add it there.</p>
+        <p class="muted small">Saves your albums, bookmarks and reading positions (not the PDFs) to a small file. Restore it on any device; everything attaches to the same PDF when you add it there.</p>
         <div class="btn-row">
           <button class="btn" id="backup-btn"><svg><use href="#i-download"/></svg><span>Back up</span></button>
           <button class="btn" id="restore-btn"><svg><use href="#i-upload"/></svg><span>Restore</span></button>
@@ -243,7 +253,6 @@
   <div id="dialog" class="modal" hidden>
     <div class="modal-card">
       <h3 id="dialog-title"></h3>
-      <div id="dialog-quote" class="quote" hidden></div>
       <input id="dialog-input" class="text-input" hidden>
       <textarea id="dialog-textarea" class="text-input" rows="5" hidden></textarea>
       <p id="dialog-msg" class="muted" hidden></p>
