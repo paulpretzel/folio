@@ -1,6 +1,11 @@
 // Tiny promise wrapper around IndexedDB.
+//
+// v1: books, files, highlights, bookmarks
+// v2: + albums. The old `highlights` store is deliberately left in place on
+//     upgraded installs (the feature is gone, but we never delete user data
+//     during a schema upgrade). Fresh installs don't create it.
 const DB_NAME = 'folio';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let dbPromise = null;
 
 function open() {
@@ -11,12 +16,10 @@ function open() {
       const db = req.result;
       if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('files')) db.createObjectStore('files');
-      if (!db.objectStoreNames.contains('highlights')) {
-        db.createObjectStore('highlights', { keyPath: 'id' }).createIndex('bookId', 'bookId');
-      }
       if (!db.objectStoreNames.contains('bookmarks')) {
         db.createObjectStore('bookmarks', { keyPath: 'id' }).createIndex('bookId', 'bookId');
       }
+      if (!db.objectStoreNames.contains('albums')) db.createObjectStore('albums', { keyPath: 'id' });
     };
     req.onsuccess = () => {
       const db = req.result;
@@ -60,14 +63,17 @@ export const db = {
   },
   async deleteBook(bookId) {
     const database = await open();
-    const hl = await this.byBook('highlights', bookId);
     const bm = await this.byBook('bookmarks', bookId);
+    // Clean up any highlights left over from older versions of the app.
+    const legacy = database.objectStoreNames.contains('highlights')
+      ? await this.byBook('highlights', bookId) : [];
+    const stores = ['books', 'files', 'bookmarks', ...(legacy.length ? ['highlights'] : [])];
     return new Promise((resolve, reject) => {
-      const tx = database.transaction(['books', 'files', 'highlights', 'bookmarks'], 'readwrite');
+      const tx = database.transaction(stores, 'readwrite');
       tx.objectStore('books').delete(bookId);
       tx.objectStore('files').delete(bookId);
-      for (const h of hl) tx.objectStore('highlights').delete(h.id);
       for (const b of bm) tx.objectStore('bookmarks').delete(b.id);
+      for (const h of legacy) tx.objectStore('highlights').delete(h.id);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
