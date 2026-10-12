@@ -31,9 +31,9 @@ The app has to be served from a web address once so your devices can install it.
 
 ## First-run tour
 
-The first time Folio opens with an empty shelf, it offers a quick tour. Arrows point at the real buttons (Add book, albums, settings), then you open **Welcome to Folio**, a short guide book, and follow animated hints: swipe or tap to turn, double-tap to zoom in and out, tap the middle for the menus, bookmark, open the contents and head back to the library. Each step waits until you've done it. *Skip* works at any point, and **Settings → Show the tour again** replays it. The guide book holds the explanations; delete it like any other book when you're done.
+The first time Folio opens with an empty shelf, it offers a quick tour that walks you through **Welcome to Folio**, a short guide book. Each page teaches one thing (zoom, the menus, bookmarks, jumping to a chapter, adding books, backups) and the tour points at the screen to match: an arrow on the real button, or an animated hint on the page. It waits until you've done each one, gives you time to read the pages that only explain, and at the end takes you back to the library to add your own books. *Skip* works at any point, and **Settings → Show the tour again** replays it. Delete the guide like any other book when you're done.
 
-The guide PDF is built by `tools/make-sample-book.py` (needs `pip install reportlab`; it downloads the Source Serif 4 fonts into `tools/.fonts` and embeds them). Edit the text there and re-run it from the repo root to change it.
+The guide PDF is built by `tools/make-sample-book.py` (needs `pip install reportlab`; it downloads the Source Serif 4 fonts into `tools/.fonts` and embeds them). Edit the text there and re-run it from the repo root to change it; if you reorder or retitle pages, update `STEPS` in `js/tour.js` to match.
 
 ## Adding books (and what Folio does with them)
 
