@@ -1,5 +1,5 @@
 // Folio service worker: makes the app work offline and receives PDFs shared from other apps.
-const VERSION = 'folio-v2';
+const VERSION = 'folio-v3';
 const SHARE_CACHE = 'folio-share';       // PDFs waiting to be imported; never cleaned up by activate
 const SHELL = [
   './',
@@ -13,6 +13,8 @@ const SHELL = [
   'js/identify.js',
   'js/library.js',
   'js/reader.js',
+  'js/tour.js',
+  'samples/welcome-to-folio.pdf',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',

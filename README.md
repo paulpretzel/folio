@@ -29,6 +29,12 @@ The app has to be served from a web address once so your devices can install it.
 2. Chrome: **⋮ menu → Add to home screen → Install**. Samsung Internet: **☰ menu → Add page to → Home screen**.
 3. Open Folio from the icon and add your books.
 
+## First-run tour
+
+The first time Folio opens with an empty shelf, a few cards explain adding books, albums and backups, then offer a short **Welcome to Folio** sample book. Inside it, tips at the bottom of the screen teach page turns, zoom, the menus, bookmarks and the contents panel, each disappearing once you've tried it. *Skip* works at any point, and **Settings → Show the tour again** replays it. Delete the sample book like any other when you're done.
+
+The sample PDF is built by `tools/make-sample-book.py` (needs `pip install reportlab`); edit the text there and re-run it from the repo root to change it.
+
 ## Adding books (and what Folio does with them)
 
 - **Add book:** tap *Add book* and pick PDFs from Files, Drive or Downloads. You can pick several at once, or drag PDFs onto the window on a computer.
