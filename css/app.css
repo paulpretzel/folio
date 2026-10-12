@@ -485,3 +485,29 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ===================== Tour ===================== */
+.welcome-card { text-align: center; padding: 28px 24px 18px; }
+.welcome-card .empty-art { width: 80px; height: 80px; border-radius: 24px; margin-bottom: 16px; }
+.welcome-card .empty-art svg { width: 38px; height: 38px; }
+.welcome-card p { line-height: 1.5; margin: 0 auto; max-width: 36ch; min-height: 4.5em; }
+.welcome-dots { display: flex; justify-content: center; gap: 7px; margin: 18px 0 16px; }
+.welcome-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: background .2s, width .2s; }
+.welcome-dots span.on { width: 20px; border-radius: 4px; background: var(--accent); }
+.welcome-actions { justify-content: space-between; }
+
+.coach { position: absolute; z-index: 22; left: 50%; bottom: calc(var(--sab) + 168px); transform: translateX(-50%);
+  width: min(380px, calc(100vw - 32px)); padding: 12px 14px 10px; border-radius: 16px;
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow-lg); border: 1px solid var(--line);
+  pointer-events: none; text-align: center; }
+.coach.pop { animation: coach-rise .26s var(--ease); }
+@keyframes coach-rise { from { transform: translate(-50%, 10px); opacity: 0; } }
+.coach-count { display: block; font-size: 12px; font-weight: 600; color: var(--accent); letter-spacing: .02em; }
+.coach-text { margin: 4px 0 6px; line-height: 1.4; }
+.coach-skip { pointer-events: auto; background: none; border: 0; color: var(--muted); font: inherit; font-size: 13px; padding: 6px 10px; cursor: pointer; }
+#reader.chrome-hidden .coach { bottom: calc(var(--sab) + 84px); }
+.coach-target { position: relative; box-shadow: 0 0 0 2px var(--accent); border-radius: 50%; }
+@media (prefers-reduced-motion: no-preference) {
+  .coach-target { animation: coach-pulse 1.6s ease-in-out infinite; }
+}
+@keyframes coach-pulse { 50% { box-shadow: 0 0 0 6px var(--accent-soft), 0 0 0 2px var(--accent); } }

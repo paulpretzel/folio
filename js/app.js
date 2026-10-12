@@ -2,10 +2,12 @@
 import { applyTheme, settings } from './settings.js';
 import { initLibrary, loadLibrary, importFiles, getBooks } from './library.js';
 import { initReader, openBook } from './reader.js';
+import { initTour, maybeShowWelcome } from './tour.js';
 import { ls } from './ui.js';
 
 initReader({ onClose: () => loadLibrary() });
 initLibrary({ openBook });
+initTour({ openBook });
 
 /* PDFs sent to Folio from another app (Android share sheet → Folio) are stashed
    by the service worker; pick them up here and run them through the normal
@@ -38,5 +40,6 @@ async function init() {
   const shared = await takeSharedFiles();
   const last = ls.get('openBook');
   if (!shared && last && settings.resume && getBooks().some((b) => b.id === last)) openBook(last);
+  else if (!shared) maybeShowWelcome();
 }
 init();
