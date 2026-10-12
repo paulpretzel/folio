@@ -483,7 +483,7 @@ function zoomTo(z, fx = R.vw / 2, fy = R.vh / 2, anim = true) {
   [R.tx, R.ty] = clampPan(fx - (fx - R.tx) * k, fy - (fy - R.ty) * k, z);
   applyTransform(anim);
   if (z < 1.12) curSlide()?.pages.forEach(clearHi); else scheduleHi();
-  if (z > 1.02) emit('zoom');
+  emit('zoom', { zoom: z });
 }
 function resetZoom() {
   cancelAnimationFrame(R.glideRaf);
@@ -858,7 +858,7 @@ function endPinch() {
   [R.tx, R.ty] = clampPan(R.tx, R.ty);
   applyTransform(true);
   scheduleHi();
-  emit('zoom');
+  emit('zoom', { zoom: R.zoom });
 }
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 
@@ -1048,6 +1048,7 @@ function openPanel(tab) {
       panel.classList.remove('open');
       panel.setAttribute('aria-hidden', 'true');
       $('#scrim').hidden = true;
+      emit('panel-close');
     });
   }
   switchTab(tab);

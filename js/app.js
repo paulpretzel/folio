@@ -2,7 +2,7 @@
 import { applyTheme, settings } from './settings.js';
 import { initLibrary, loadLibrary, importFiles, getBooks } from './library.js';
 import { initReader, openBook } from './reader.js';
-import { initTour, maybeShowWelcome } from './tour.js';
+import { initTour, maybeStartTour } from './tour.js';
 import { ls } from './ui.js';
 
 initReader({ onClose: () => loadLibrary() });
@@ -40,6 +40,6 @@ async function init() {
   const shared = await takeSharedFiles();
   const last = ls.get('openBook');
   if (!shared && last && settings.resume && getBooks().some((b) => b.id === last)) openBook(last);
-  else if (!shared) maybeShowWelcome();
+  else if (!shared) maybeStartTour();
 }
 init();

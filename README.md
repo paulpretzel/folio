@@ -31,9 +31,9 @@ The app has to be served from a web address once so your devices can install it.
 
 ## First-run tour
 
-The first time Folio opens with an empty shelf, a few cards explain adding books, albums and backups, then offer a short **Welcome to Folio** sample book. Inside it, tips at the bottom of the screen teach page turns, zoom, the menus, bookmarks and the contents panel, each disappearing once you've tried it. *Skip* works at any point, and **Settings → Show the tour again** replays it. Delete the sample book like any other when you're done.
+The first time Folio opens with an empty shelf, it offers a quick tour. Arrows point at the real buttons (Add book, albums, settings), then you open **Welcome to Folio**, a short guide book, and follow animated hints: swipe or tap to turn, double-tap to zoom in and out, tap the middle for the menus, bookmark, open the contents and head back to the library. Each step waits until you've done it. *Skip* works at any point, and **Settings → Show the tour again** replays it. The guide book holds the explanations; delete it like any other book when you're done.
 
-The sample PDF is built by `tools/make-sample-book.py` (needs `pip install reportlab`); edit the text there and re-run it from the repo root to change it.
+The guide PDF is built by `tools/make-sample-book.py` (needs `pip install reportlab`; it downloads the Source Serif 4 fonts into `tools/.fonts` and embeds them). Edit the text there and re-run it from the repo root to change it.
 
 ## Adding books (and what Folio does with them)
 
