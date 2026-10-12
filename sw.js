@@ -1,5 +1,5 @@
 // Folio service worker: makes the app work offline and receives PDFs shared from other apps.
-const VERSION = 'folio-v3';
+const VERSION = 'folio-v4';
 const SHARE_CACHE = 'folio-share';       // PDFs waiting to be imported; never cleaned up by activate
 const SHELL = [
   './',

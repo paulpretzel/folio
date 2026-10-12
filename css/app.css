@@ -258,7 +258,7 @@ h1, h2, h3, h4 { margin: 0; }
 .stage.dragging { cursor: grabbing; }
 .stage.zoomed { cursor: grab; }
 .track { position: absolute; inset: 0; will-change: transform; }
-.slide { position: absolute; inset: 0; will-change: transform; visibility: hidden; }
+.slide { position: absolute; inset: 0; overflow: hidden; will-change: transform; visibility: hidden; }
 .slide.on, .track.moving .slide { visibility: visible; }
 .slide.fade { animation: fade-in .2s ease-out; }
 .zoomer { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
