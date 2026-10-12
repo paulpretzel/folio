@@ -47,6 +47,8 @@ function freshState() {
 }
 let R = freshState();
 export const isReaderOpen = () => R.open;
+/** The page numbers on screen right now (two in a spread), or none when no book is open. */
+export const visiblePages = () => (R.open && R.slides[R.cur]) || [];
 /** Tell the rest of the app what the reader just did (the tour listens for these). */
 const emit = (type, detail = {}) => document.dispatchEvent(new CustomEvent(`folio:${type}`, { detail: { book: R.book, ...detail } }));
 

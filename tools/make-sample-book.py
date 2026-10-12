@@ -1,4 +1,8 @@
-"""Builds samples/welcome-to-folio.pdf, the guide book the first-run tour opens.
+"""Builds samples/welcome-to-folio.pdf, the guide book the first-run tour walks you through.
+
+Each page teaches one thing. The tour in js/tour.js points at the screen to match, so if
+you reorder or retitle pages here, update its STEPS (page numbers, and the "Your library"
+contents entry) to match.
 
 Run from the repo root:  python3 tools/make-sample-book.py   (needs: pip install reportlab)
 The output is committed, so this only needs re-running after editing the text below.
@@ -50,131 +54,131 @@ def load_fonts():
 
 
 load_fonts()
-body = ParagraphStyle('body', fontName='Serif', fontSize=12.5, leading=18.5, textColor=INK, spaceAfter=9)
-intro = ParagraphStyle('intro', parent=body, fontName='Serif-Italic', textColor=MUTED, spaceAfter=14)
-label = ParagraphStyle('label', parent=body, fontName='Serif-Bold', spaceAfter=1)
-item = ParagraphStyle('item', parent=body, spaceAfter=11)
-note = ParagraphStyle('note', parent=body, fontName='Serif-Italic', fontSize=11.5, leading=16.5, textColor=MUTED)
+text = ParagraphStyle('text', fontName='Serif', fontSize=14, leading=20.5, textColor=INK, spaceAfter=12)
+lead = ParagraphStyle('lead', parent=text, fontName='Serif-Italic', textColor=MUTED, spaceAfter=18)
+action = ParagraphStyle('action', parent=text, fontName='Serif-Bold', textColor=ACCENT, spaceAfter=12)
+fine = ParagraphStyle('fine', parent=text, fontSize=6, leading=8, textColor=MUTED)
+TRY_BG = HexColor('#f7e6dc')
 
-# Each chapter is one page: (title, intro line, [(label, text)] rows, closing note or None).
-# A row with an empty label is a plain paragraph.
-CHAPTERS = [
-    ('Reading', 'Folio turns pages sideways, like a paper book.', [
-        ('Turn the page', 'Swipe left or right, or tap the right or left edge of the screen. A quick flick is enough.'),
-        ('Zoom', 'Pinch, or double-tap the spot you want to see closer. Double-tap again to zoom back out. '
-                 'The zoom stays on as you turn pages, so you can read a whole book zoomed in.'),
-        ('Show the menus', 'Tap the middle of the page. They tuck themselves away when you turn a page.'),
-        ('Jump anywhere', 'Drag the slider at the bottom, or tap the page number to type one. '
-                          'After a jump, Back to page takes you back.'),
-    ], 'Folio remembers your page in every book and reopens right where you stopped.'),
-    ('Find your way', 'Three buttons at the top right of every book.', [
-        ('The ribbon', 'Bookmarks the page you are on. Tap it again to remove the bookmark.'),
-        ('The list', 'Opens the contents, your bookmarks, and search. This guide has chapters, '
-                     'so try jumping to one from the contents.'),
-        ('Aa', 'Display settings: light, sepia and dark themes, one page or two side by side, and zoom.'),
-    ], 'On a tablet, turn the screen sideways to see two pages at once, like an open book.'),
-    ('Your library', 'Everything you add stays on this device and works offline.', [
-        ('Add books', 'Tap + to pick PDFs from Files, Drive or Downloads. On Android you can also '
-                      'share a PDF straight to Folio, and on a computer you can drag PDFs onto the window.'),
-        ('Albums', 'Folio reads each new PDF, on this device only, and works out the title, the author '
-                   'and what kind of book it is. It then suggests an album, such as Fiction or Textbooks. '
-                   'Check the guess and tap to file it.'),
-        ('Tidy up', 'Each book has a … menu to rename it, move it to another album or remove it. '
-                    'Select lets you move several books at once.'),
-    ], None),
-    ('Keep a backup', 'Your books never leave this device, so keep a copy of your setup.', [
-        ('Back up', 'In the library, open Settings and tap Back up. It saves your albums, bookmarks and '
-                    'reading positions to a small file.'),
-        ('Restore', 'On a new device, tap Restore, then add the same PDFs. Everything attaches to them again.'),
-        ('Your PDFs', 'The backup holds your setup, not the books themselves, so keep the PDFs in Files, '
-                      'Drive or Downloads too. Uninstalling Folio removes the copies inside it.'),
-    ], None),
-    ('Where to find books', 'Folio opens PDFs you already have. These sites offer books you can download legally and free.', [
-        ('Project Gutenberg', 'gutenberg.org. Over 70,000 classics whose copyright has expired.'),
-        ('OpenStax', 'openstax.org. Free college textbooks as PDFs.'),
-        ('Internet Archive', 'archive.org. Its public-domain collections.'),
-        ('arXiv', 'arxiv.org. Research papers in science and maths.'),
-    ], 'Books bought from Kindle or Apple Books are copy-protected, so they cannot be opened in Folio.'),
-    ('On a computer', 'Folio works with a keyboard and mouse too.', [
-        ('Turn pages', 'Arrow keys, Space, Page Up and Page Down, or the mouse wheel.'),
-        ('Jump to the ends', 'Home and End.'),
-        ('Zoom', 'Ctrl or Cmd with plus, minus, or 0 to fit the page.'),
-        ('Search and bookmarks', 'Ctrl or Cmd with F to search, B to bookmark, Esc to close a panel.'),
-    ], None),
+# One page each: (title, lead line, blocks). A block is plain text, or (kind, text) where kind is
+# 'try' (the thing to do on this page, drawn in a box) or 'fine' (small print, to practise zooming).
+PAGES = [
+    ('Zoom in', 'Make small text bigger.', [
+        ('try', 'Double-tap anywhere on this page to zoom in. Double-tap again to zoom out.'),
+        'You can also pinch with two fingers. While zoomed in, drag to look around the page.',
+        ('fine', 'You zoomed in. Folio keeps your zoom as you turn pages, '
+                 'so small print in textbooks and scanned books stays easy to read.'),
+    ]),
+    ('Show the menus', 'The page fills your screen while you read.', [
+        ('try', 'Tap the middle of the page to show the menus. Tap again to hide them.'),
+        'The menus hide on their own when you turn a page.',
+        'In the menus, the slider at the bottom moves you anywhere in the book.',
+    ]),
+    ('Bookmark a page', 'Save a page to come back to.', [
+        ('try', 'Tap the ribbon at the top right to bookmark this page.'),
+        'Tap the ribbon again to remove the bookmark.',
+    ]),
+    ('Jump to a chapter', 'Find your way around a long book.', [
+        ('try', 'Tap the list button at the top right, then tap Your library.'),
+        'The list also shows your bookmarks and lets you search the book.',
+    ]),
+    ('Your library', 'Add your own books.', [
+        'In the library, tap <b>+</b> to add PDFs from Files, Drive or Downloads.',
+        'Folio suggests an album for each new book, such as Fiction or Textbooks. Tap the suggestion to file it.',
+        'Folio saves your page in every book, so you always pick up where you left off.',
+    ]),
+    ('Keep a backup', 'Your books stay on this device.', [
+        'Uninstalling Folio deletes the books inside it, so keep your PDFs in Files or Drive too.',
+        'In the library, tap <b>Settings</b>, then <b>Back up</b>. This saves your albums, bookmarks '
+        'and reading positions to a small file.',
+        'On a new device, tap <b>Restore</b> and add the same PDFs.',
+    ]),
+    ('Free books', 'Folio opens PDFs you already have.', [
+        'These sites offer free books you can download legally:',
+        '<b>Project Gutenberg</b> (gutenberg.org) for classic books.',
+        '<b>OpenStax</b> (openstax.org) for college textbooks.',
+    ]),
 ]
 
 
-def para(c, text, style, x, y, width):
-    p = Paragraph(text, style)
+def para(c, text_, style, x, y, width):
+    p = Paragraph(text_, style)
     _, h = p.wrap(width, H)
     p.drawOn(c, x, y - h)
     return y - h - style.spaceAfter
 
 
-def folio_number(c, n):
+def page_number(c, n):
     c.setFont('Serif', 9)
     c.setFillColor(MUTED)
     c.drawCentredString(W / 2, 30, str(n))
 
 
 def cover(c):
+    c.bookmarkPage('cover')
+    c.addOutlineEntry('Welcome', 'cover', level=0)
     c.setFillColor(PAPER)
     c.rect(0, 0, W, H, stroke=0, fill=1)
     c.setFillColor(ACCENT)
     c.rect(0, H - 14, W, 14, stroke=0, fill=1)
     c.setFillColor(INK)
     c.setFont('Display', 40)
-    c.drawCentredString(W / 2, H * 0.6, 'Welcome')
-    c.drawCentredString(W / 2, H * 0.6 - 46, 'to Folio')
+    c.drawCentredString(W / 2, H * 0.62, 'Welcome')
+    c.drawCentredString(W / 2, H * 0.62 - 46, 'to Folio')
     c.setStrokeColor(ACCENT)
     c.setLineWidth(1.5)
-    c.line(W / 2 - 36, H * 0.6 - 72, W / 2 + 36, H * 0.6 - 72)
-    sub = ParagraphStyle('sub', parent=intro, alignment=TA_CENTER, fontSize=12.5, leading=18)
-    para(c, 'A short guide to your new reader', sub, M, H * 0.6 - 90, W - 2 * M)
-    c.setFont('Serif', 10)
-    c.setFillColor(MUTED)
-    c.drawCentredString(W / 2, 50, 'Your PDFs, read like books.')
+    c.line(W / 2 - 36, H * 0.62 - 72, W / 2 + 36, H * 0.62 - 72)
+    sub = ParagraphStyle('sub', parent=lead, alignment=TA_CENTER)
+    para(c, 'Your PDFs, read like books.', sub, M, H * 0.62 - 90, W - 2 * M)
+    go = ParagraphStyle('go', parent=action, alignment=TA_CENTER)
+    para(c, 'Swipe left or tap the right edge of the screen to turn the page.', go, M + 6, 120, W - 2 * M - 12)
 
 
-def chapter(c, n, key, title, lead, rows, closing):
+def try_box(c, text_, y):
+    p = Paragraph(text_, action)
+    pad = 12
+    _, h = p.wrap(W - 2 * M - 2 * pad, H)
+    c.setFillColor(TRY_BG)
+    c.roundRect(M, y - h - 2 * pad, W - 2 * M, h + 2 * pad, 10, stroke=0, fill=1)
+    c.setFillColor(ACCENT)
+    c.rect(M, y - h - 2 * pad, 4, h + 2 * pad, stroke=0, fill=1)
+    p.drawOn(c, M + pad + 2, y - pad - h)
+    return y - h - 2 * pad - 18
+
+
+def page(c, n, title, lead_line, blocks):
+    key = f'p{n}'
     c.bookmarkPage(key)
     c.addOutlineEntry(title, key, level=0)
+    c.setFillColor(INK)
+    c.setFont('Display', 27)
+    c.drawString(M, H - 84, title)
+    y = para(c, lead_line, lead, M, H - 98, W - 2 * M)
+    for b in blocks:
+        kind, t = b if isinstance(b, tuple) else ('text', b)
+        if kind == 'try':
+            y = try_box(c, t, y)
+        else:
+            y = para(c, t, fine if kind == 'fine' else text, M, y, W - 2 * M)
+    c.setFont('Serif-Italic', 11)
     c.setFillColor(ACCENT)
-    c.setFont('Serif', 10)
-    c.drawString(M, H - 58, f'CHAPTER {n}')
-    c.setFillColor(INK)
-    c.setFont('Display', 25)
-    c.drawString(M, H - 90, title)
-    y = para(c, lead, intro, M, H - 104, W - 2 * M)
-    for lab, text in rows:
-        if lab:
-            y = para(c, lab, label, M, y, W - 2 * M)
-        y = para(c, text, item, M, y, W - 2 * M)
-    if closing:
-        y -= 4
-        c.setStrokeColor(RULE)
-        c.setLineWidth(1)
-        c.line(M, y, W - M, y)
-        para(c, closing, note, M, y - 12, W - 2 * M)
-    folio_number(c, n + 1)
+    c.drawRightString(W - M, 52, 'Next page ›')
+    page_number(c, n)
 
 
-def back_page(c, n):
+def last_page(c, n):
     c.bookmarkPage('ready')
-    c.addOutlineEntry('You are ready', 'ready', level=0)
+    c.addOutlineEntry('You’re ready', 'ready', level=0)
     c.setFillColor(INK)
-    c.setFont('Display', 25)
-    c.drawCentredString(W / 2, H * 0.58, 'You are ready')
+    c.setFont('Display', 27)
+    c.drawCentredString(W / 2, H * 0.6, 'You’re ready')
     c.setStrokeColor(ACCENT)
     c.setLineWidth(1.5)
-    c.line(W / 2 - 36, H * 0.58 - 20, W / 2 + 36, H * 0.58 - 20)
-    centred = ParagraphStyle('centred', parent=body, alignment=TA_CENTER)
-    y = para(c, 'Tap the back arrow at the top left to return to your library and add your own books.',
-             centred, M + 10, H * 0.58 - 36, W - 2 * M - 20)
-    para(c, 'Done with this guide? Remove it from its … menu in the library. '
-            'Settings brings the tour back whenever you like.', ParagraphStyle('n2', parent=note, alignment=TA_CENTER),
-         M + 10, y - 6, W - 2 * M - 20)
-    folio_number(c, n)
+    c.line(W / 2 - 36, H * 0.6 - 20, W / 2 + 36, H * 0.6 - 20)
+    y = try_box(c, 'Tap the back arrow at the top left to go to your library and add your first book.', H * 0.6 - 40)
+    centred = ParagraphStyle('centred', parent=lead, alignment=TA_CENTER, fontSize=12, leading=17)
+    para(c, 'You can delete this guide from its … menu in the library.', centred, M, y, W - 2 * M)
+    page_number(c, n)
 
 
 def main():
@@ -184,14 +188,12 @@ def main():
     c.setSubject('A short guide to using Folio')
     c.setCreator('Folio')
     c.showOutline()
-    c.bookmarkPage('cover')
-    c.addOutlineEntry('Cover', 'cover', level=0)
     cover(c)
     c.showPage()
-    for n, (title, lead, rows, closing) in enumerate(CHAPTERS, start=1):
-        chapter(c, n, f'ch{n}', title, lead, rows, closing)
+    for n, (title, lead_line, blocks) in enumerate(PAGES, start=2):
+        page(c, n, title, lead_line, blocks)
         c.showPage()
-    back_page(c, len(CHAPTERS) + 2)
+    last_page(c, len(PAGES) + 2)
     c.showPage()
     c.save()
 
