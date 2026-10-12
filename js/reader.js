@@ -17,6 +17,7 @@ import { settings, saveSettings, applyTheme } from './settings.js';
 const MAX_ZOOM = 5;
 const MAX_PX = 10e6;            // canvas pixel budget (iOS Safari caps canvases around 16M)
 const TAP_ZOOM = 2.5;
+const EDGE_SLACK = 48;          // px you must keep pushing past a page edge you panned into before the next page follows
 const EASE = 'cubic-bezier(.22,.8,.26,1)';
 
 const libraryEl = $('#library');
@@ -494,6 +495,27 @@ $('#zoom-in').onclick = () => zoomTo(R.zoom * 1.3);
 $('#zoom-out').onclick = () => zoomTo(R.zoom / 1.3);
 $('#zoom-fit').onclick = () => zoomTo(1);
 
+/* Turning a page keeps the zoom, so you can read a whole book zoomed in. The new
+ * page lands at its top going forward (bottom going back), keeping the same
+ * horizontal position. */
+function landing(s, dir, z = R.zoom, tx = R.tx) {
+  const b = s.box;
+  const [x0, x1] = axisBounds(b.x, b.w, R.vw, z), [y0, y1] = axisBounds(b.y, b.h, R.vh, z);
+  return [clamp(tx, x0, x1), dir > 0 ? y1 : y0];
+}
+/** Pre-zoom the neighbouring slides so they slide in already at their landing spot. */
+function prepNeighbours() {
+  for (const dir of [-1, 1]) {
+    const s = R.mounted.get(R.cur + dir);
+    if (!s) continue;
+    s.zoomer.style.transition = 'none';
+    if (R.zoom > 1.02 && s.laidOut) {
+      const [tx, ty] = landing(s, dir);
+      s.zoomer.style.transform = `translate3d(${tx}px,${ty}px,0) scale(${R.zoom})`;
+    } else s.zoomer.style.transform = '';
+  }
+}
+
 /* ================================================================
    Page turning
    ================================================================ */
@@ -532,25 +554,39 @@ function settle(dir, from = 0) {
 function turn(dir) {
   if (!R.open) return;
   finishAnim();
-  if (R.zoom > 1.02) resetZoomAnimated();
+  cancelAnimationFrame(R.glideRaf);
   const t = R.cur + dir;
   if (t < 0 || t >= R.slides.length) return bump(dir);
+  prepNeighbours();
   settle(dir, 0);
 }
 function bump(dir) {
   if (reducedMotion.matches) return;
   track.animate([{ transform: trk(0) }, { transform: trk(-dir * 22) }, { transform: trk(0) }], { duration: 260, easing: 'ease-out' });
 }
-function resetZoomAnimated() { zoomTo(1, undefined, undefined, false); }
 
 function commitTurn(idx) {
+  const z = R.zoom > 1.02 ? R.zoom : 0, tx = R.tx, dir = Math.sign(idx - R.cur);
   R.cur = idx;
   setTrack(0);
   resetZoom();
+  if (z) keepZoom(curSlide(), dir, z, tx);
   clearHits();
   ensureWindow();
   afterNavigate();
   if (settings.autoHide && !R.chromeHidden) setChrome(false);
+}
+
+function keepZoom(s, dir, z, tx) {
+  if (!s) return;
+  if (!s.laidOut) {                                      // still measuring: zoom in once it's laid out, unless you've moved on
+    s.ready?.then(() => { if (curSlide() === s && R.zoom === 1 && !gest && !R.anim) keepZoom(s, dir, z, tx); });
+    return;
+  }
+  R.zoom = z;
+  [R.tx, R.ty] = landing(s, dir, z, tx);
+  applyTransform(false);
+  scheduleHi();
 }
 
 /** Jump to any page with a quick fade instead of sliding through everything between. */
@@ -705,6 +741,7 @@ stage.addEventListener('pointermove', (e) => {
     }
     g.kind = R.zoom > 1.02 ? 'pan' : Math.abs(dx) > Math.abs(dy) * 0.9 ? 'swipe' : 'ignore';
     if (g.kind === 'ignore') return;
+    if (g.kind === 'pan') prepNeighbours();
     try { stage.setPointerCapture(e.pointerId); } catch {}
     stage.classList.add('dragging');
     clearTimeout(R.tapTimer); R.lastTap = null;
@@ -722,9 +759,11 @@ stage.addEventListener('pointermove', (e) => {
   } else if (g.kind === 'pan') {
     const wantX = g.tx0 + dx;
     const [cx, cy] = clampPan(wantX, g.ty0 + dy);
-    let over = 0;
-    if (g.edgeL && wantX > cx) over = wantX - cx;        // pushing past the left edge → previous page
-    else if (g.edgeR && wantX < cx) over = wantX - cx;   // pushing past the right edge → next page
+    let over = wantX - cx;                               // > 0: pushing past the left edge → previous page; < 0: right edge → next
+    if (over && !(over > 0 ? g.edgeL : g.edgeR)) {       // edge reached during this drag: take up some slack first
+      over = over > 0 ? Math.max(0, over - EDGE_SLACK) : Math.min(0, over + EDGE_SLACK);
+      if (over) g.late = true;
+    }
     const t = R.cur + (over < 0 ? 1 : -1);
     if (over && (t < 0 || t >= R.slides.length)) over *= 0.28;
     R.tx = cx; R.ty = cy;
@@ -760,7 +799,7 @@ function velocity(g) {
 function releaseDrag(g) {
   const W = R.vw, off = g.off, sgn = Math.sign(off);
   const { vx, vy } = velocity(g);
-  const fast = Math.abs(vx) > 0.35;
+  const fast = Math.abs(vx) > 0.35 && Math.abs(vx) > Math.abs(vy) && !g.late;   // a quick sideways flick
   let go = false;
   if (sgn) {
     if (Math.abs(off) > W * 0.2) go = !(fast && Math.sign(vx) !== sgn);       // far enough, unless flicked back
@@ -824,7 +863,8 @@ function onTap(g, e) {
   if (!settingsSheet.hidden) { settingsSheet.hidden = true; return; }
   const x = e.clientX, y = e.clientY, zoomed = R.zoom > 1.02;
   const fx = x / innerWidth;
-  if (!zoomed && settings.tapTurn && (fx < 0.22 || fx > 0.78)) {
+  const zone = zoomed ? 0.15 : 0.22;                    // narrower when zoomed, leaving room to double-tap out
+  if (settings.tapTurn && (fx < zone || fx > 1 - zone)) {
     clearTimeout(R.tapTimer); R.lastTap = null;
     return turn(fx < 0.5 ? -1 : 1);
   }
