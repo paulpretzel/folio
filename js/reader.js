@@ -47,6 +47,8 @@ function freshState() {
 }
 let R = freshState();
 export const isReaderOpen = () => R.open;
+/** Tell the rest of the app what the reader just did (the tour listens for these). */
+const emit = (type, detail = {}) => document.dispatchEvent(new CustomEvent(`folio:${type}`, { detail: { book: R.book, ...detail } }));
 
 /* ================================================================
    Open / close
@@ -108,6 +110,7 @@ export async function openBook(id) {
   book.lastOpened = Date.now();
   db.put('books', book);
   if (startPage > 1) toast(`Picked up where you left off · page ${startPage}`);
+  emit('open');
 
   R.readTimer = setInterval(() => {
     if (document.visibilityState === 'visible' && Date.now() - R.lastActivity < 120000 && R.book) {
@@ -121,6 +124,7 @@ export async function openBook(id) {
 
 function closeReaderNow() {
   savePosition();
+  emit('close');
   clearInterval(R.readTimer);
   for (const t of ['saveTimer', 'hiTimer', 'tapTimer']) clearTimeout(R[t]);
   cancelAnimationFrame(R.glideRaf);
@@ -479,6 +483,7 @@ function zoomTo(z, fx = R.vw / 2, fy = R.vh / 2, anim = true) {
   [R.tx, R.ty] = clampPan(fx - (fx - R.tx) * k, fy - (fy - R.ty) * k, z);
   applyTransform(anim);
   if (z < 1.12) curSlide()?.pages.forEach(clearHi); else scheduleHi();
+  if (z > 1.02) emit('zoom');
 }
 function resetZoom() {
   cancelAnimationFrame(R.glideRaf);
@@ -607,6 +612,7 @@ function afterNavigate() {
   ensureText(curSlide());
   saveSoon();
   if (R.backJump && Math.abs(firstPage() - R.backLanding) > 2) { R.backJump = null; $('#backjump').hidden = true; }
+  emit('turn');
 }
 
 function goToPage(n, { record = true } = {}) {
@@ -852,6 +858,7 @@ function endPinch() {
   [R.tx, R.ty] = clampPan(R.tx, R.ty);
   applyTransform(true);
   scheduleHi();
+  emit('zoom');
 }
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 
@@ -874,7 +881,7 @@ function onTap(g, e) {
     return zoomTo(zoomed ? 1 : TAP_ZOOM, x, y);
   }
   R.lastTap = { t: now, x, y };
-  R.tapTimer = setTimeout(() => { R.lastTap = null; setChrome(R.chromeHidden); }, 260);
+  R.tapTimer = setTimeout(() => { R.lastTap = null; setChrome(R.chromeHidden); emit('bars', { shown: !R.chromeHidden }); }, 260);
 }
 
 /* ---------- wheel / trackpad ---------- */
@@ -991,6 +998,7 @@ async function toggleBookmark() {
   markAll();
   updateUI();
   refreshPanelIfOpen('bookmarks');
+  emit('bookmark');
 }
 $('#bookmark-btn').onclick = toggleBookmark;
 
@@ -1043,6 +1051,7 @@ function openPanel(tab) {
     });
   }
   switchTab(tab);
+  emit('panel');
 }
 const isNarrow = () => innerWidth < 900;
 function closePanelIfNarrow() {

@@ -318,7 +318,8 @@ async function makeCover(pdf) {
   } catch { return null; }
 }
 
-export async function importFiles(fileList) {
+/** quiet: add the books without the filing sheet or toasts (the tour's sample book). */
+export async function importFiles(fileList, { quiet = false } = {}) {
   const files = [...fileList].filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
   if (!files.length) return toast('Please choose a PDF file');
   navigator.storage?.persist?.().catch(() => {});
@@ -368,9 +369,10 @@ export async function importFiles(fileList) {
   }
   busy(false);
   await loadLibrary();
+  const fresh = freshIds.map((id) => books.find((b) => b.id === id)).filter(Boolean);
+  if (quiet) return fresh;
 
   // If you've already made an album with the suggested name, file into it automatically when not asking.
-  const fresh = freshIds.map((id) => books.find((b) => b.id === id)).filter(Boolean);
   if (!settings.review) {
     const auto = fresh.filter((b) => !b.albumId && b.ident?.albumName && findAlbumByName(b.ident.albumName));
     for (const b of auto) b.albumId = findAlbumByName(b.ident.albumName).id;

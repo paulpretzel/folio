@@ -231,6 +231,13 @@
       <label class="sheet-row toggle"><span class="label">Reopen my last book when Folio starts</span><input type="checkbox" id="opt-resume"><span class="switch"></span></label>
       <label class="sheet-row toggle"><span class="label">Ask where to file new books<small>When off, a new book goes into a matching album if you have one, otherwise Unsorted.</small></span><input type="checkbox" id="opt-review"><span class="switch"></span></label>
       <div class="sheet-section">
+        <h4>Help</h4>
+        <p class="muted small">Walk through the basics again and practise in a short sample book.</p>
+        <div class="btn-row">
+          <button class="btn" id="tour-btn"><svg><use href="#i-sparkle"/></svg><span>Show the tour again</span></button>
+        </div>
+      </div>
+      <div class="sheet-section">
         <h4>Backup</h4>
         <p class="muted small">Saves your albums, bookmarks and reading positions (not the PDFs) to a small file. Restore it on any device; everything attaches to the same PDF when you add it there.</p>
         <div class="btn-row">
@@ -239,6 +246,19 @@
         </div>
       </div>
       <p class="muted small" id="storage-info"></p>
+    </div>
+  </div>
+
+  <div id="welcome" class="modal sticky" hidden>
+    <div class="modal-card welcome-card" role="dialog" aria-labelledby="welcome-title" aria-describedby="welcome-text">
+      <div class="empty-art" id="welcome-art"><svg><use href="#i-book"/></svg></div>
+      <h3 id="welcome-title"></h3>
+      <p id="welcome-text" class="muted"></p>
+      <div class="welcome-dots" id="welcome-dots" aria-hidden="true"></div>
+      <div class="btn-row welcome-actions">
+        <button class="btn ghost" id="welcome-skip">Skip</button>
+        <button class="btn primary" id="welcome-next">Next</button>
+      </div>
     </div>
   </div>
 
