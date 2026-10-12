@@ -58,7 +58,7 @@ The sample PDF is built by `tools/make-sample-book.py` (needs `pip install repor
 
 - **Turn pages sideways:** swipe left/right, or tap the left/right edge of the screen. A quick flick is enough; drag partway and let go to cancel.
 - **Two-page spreads** appear automatically on wide screens (iPad landscape, computers), with the cover on its own like a closed book. *Display settings → Pages* lets you force Single or Spread.
-- **Zoom:** pinch, or double-tap (double-tap again to zoom out). Drag to move around a zoomed page; push past its edge to turn the page. Text is re-drawn sharply as you zoom (up to 5×).
+- **Zoom:** pinch, or double-tap (double-tap again to zoom out). Drag to move around a zoomed page; keep pushing past its edge, or tap the left/right edge of the screen, to turn the page. The zoom stays on as you turn, so you can read a whole book zoomed in. Text is re-drawn sharply as you zoom (up to 5×).
 - **Tap the middle of the page** to show or hide the bars. The bars hide themselves when you turn a page (you can turn that off). On a computer, move the mouse to the top or bottom edge to bring them back.
 - **Keyboard:** ← → / Space / Page Up / Page Down turn pages, Home / End jump to the ends, **Ctrl/⌘ +/−/0** zoom, **Ctrl/⌘ F** search, **B** bookmark, **Esc** closes things. The mouse wheel and trackpad swipes turn pages too, and you can select and copy text.
 - **Bookmark:** tap the ribbon at the top right (or press **B**).
