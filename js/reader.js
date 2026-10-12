@@ -42,6 +42,7 @@ function freshState() {
     chromeHidden: false, backJump: null, backLanding: 0,
     saveTimer: 0, readTimer: 0, hiTimer: 0, tapTimer: 0, glideRaf: 0, lastActivity: Date.now(), wake: null,
     anim: null, lastTap: null, wheelAcc: 0, wheelAt: 0, wheelLock: 0,
+    insetFrac: 0, hiBusy: false, hiAgain: false,
     searchToken: 0, tab: 'toc', scrubbing: false,
   };
 }
@@ -399,9 +400,9 @@ function whenTextReady(p) {
 
 /* Sharp rendering while zoomed: draw just the visible region of the page at full
    resolution on top of the normal canvas, instead of the whole page at 5×. */
-function scheduleHi() {
+function scheduleHi(ms = 90) {
   clearTimeout(R.hiTimer);
-  R.hiTimer = setTimeout(renderHi, 180);
+  R.hiTimer = setTimeout(renderHi, ms);
 }
 function clearHi(p) {
   p.hiTask?.cancel();
@@ -409,21 +410,60 @@ function clearHi(p) {
   if (p.hi) { p.hi.width = p.hi.height = 0; p.hi.remove(); }
   p.hi = null; p.hiInfo = null;
 }
+const covers = (h, z, x0, y0, x1, y1) => h && h.z >= z * 0.97 && x0 >= h.x0 - 0.5 && y0 >= h.y0 - 0.5 && x1 <= h.x1 + 0.5 && y1 <= h.y1 + 0.5;
+
+/* Sharpen in three steps, re-checking between them so a pan or zoom that
+   happens meanwhile is picked up straight away:
+   1. exactly what's on screen (smallest, so it's quickest to appear),
+   2. a margin around it, mostly below, where you read next,
+   3. where the next page will open, so it slides in already sharp. */
 async function renderHi() {
-  const s = curSlide();
-  if (!s?.laidOut) return;
-  if (R.zoom < 1.12) { s.pages.forEach(clearHi); return; }
-  const gen = R.gen, z = R.zoom;
-  const vx0 = -R.tx / z, vy0 = -R.ty / z, vx1 = (R.vw - R.tx) / z, vy1 = (R.vh - R.ty) / z;
-  for (const p of s.pages) {
-    const ix0 = Math.max(vx0, p.x), iy0 = Math.max(vy0, p.y), ix1 = Math.min(vx1, p.x + p.wpx), iy1 = Math.min(vy1, p.y + p.hpx);
-    if (ix1 - ix0 < 2 || iy1 - iy0 < 2) { clearHi(p); continue; }
-    const h = p.hiInfo;
-    if (h && h.z >= z * 0.97 && ix0 >= h.x0 - 0.5 && iy0 >= h.y0 - 0.5 && ix1 <= h.x1 + 0.5 && iy1 <= h.y1 + 0.5) continue;
-    const mx = (vx1 - vx0) * 0.3, my = (vy1 - vy0) * 0.3;     // pre-render a margin so small pans stay sharp
-    await drawHi(p, gen, z, Math.max(p.x, ix0 - mx), Math.max(p.y, iy0 - my), Math.min(p.x + p.wpx, ix1 + mx), Math.min(p.y + p.hpx, iy1 + my));
-    if (gen !== R.gen) return;
+  clearTimeout(R.hiTimer);
+  R.hiTimer = 0;
+  if (R.hiBusy) { R.hiAgain = true; return; }
+  R.hiBusy = true;
+  try {
+    const gen = R.gen;
+    for (const pass of [0, 1, 2]) {
+      const s = pass === 2 ? R.mounted.get(R.cur + 1) : curSlide();
+      if (!s?.laidOut || gen !== R.gen || R.hiAgain) return;
+      if (R.zoom < 1.12) { if (pass === 0) s.pages.forEach(clearHi); return; }
+      const z = R.zoom;
+      let tx = R.tx, ty = R.ty;
+      if (pass === 2) [tx, ty] = landing(s, 1, z);
+      const view = [-tx / z, -ty / z, (R.vw - tx) / z, (R.vh - ty) / z];
+      const w = view[2] - view[0], h = view[3] - view[1];
+      for (const p of s.pages) {
+        const vis = [Math.max(view[0], p.x), Math.max(view[1], p.y), Math.min(view[2], p.x + p.wpx), Math.min(view[3], p.y + p.hpx)];
+        if (vis[2] - vis[0] < 2 || vis[3] - vis[1] < 2) { if (pass === 0) clearHi(p); continue; }
+        let r = vis;
+        if (pass === 1) {
+          // Grow the area as far as the pixel budget allows at full sharpness; never trade sharpness for size.
+          const out = Math.min(devicePixelRatio || 1, 3) * z;
+          for (let k = 1; k > 0.1; k *= 0.7) {
+            const g = [Math.max(p.x, vis[0] - w * 0.2 * k), Math.max(p.y, vis[1] - h * 0.15 * k),
+              Math.min(p.x + p.wpx, vis[2] + w * 0.2 * k), Math.min(p.y + p.hpx, vis[3] + h * 0.5 * k)];
+            if ((g[2] - g[0]) * (g[3] - g[1]) * out * out <= MAX_PX) { r = g; break; }
+          }
+          if (r === vis) continue;
+        }
+        if (covers(p.hiInfo, z, ...r)) continue;
+        if (pass === 1 && !covers(p.hiInfo, z, ...vis)) continue;     // the view moved on: redo step 1 first
+        await drawHi(p, gen, z, ...r);
+        if (gen !== R.gen || R.hiAgain || R.zoom !== z) return;
+      }
+    }
+  } catch (e) {
+    console.warn(e);
+  } finally {
+    R.hiBusy = false;
+    if (R.hiAgain) { R.hiAgain = false; if (R.open) renderHi(); }
   }
+}
+/** While you pan, keep sharpening as you go instead of waiting for you to stop. */
+function hiFollow() {
+  if (R.hiBusy) R.hiAgain = true;
+  else if (!R.hiTimer) R.hiTimer = setTimeout(renderHi, 60);
 }
 async function drawHi(p, gen, z, x0, y0, x1, y1) {
   const page = await R.pdf.getPage(p.num);
@@ -484,16 +524,18 @@ function zoomTo(z, fx = R.vw / 2, fy = R.vh / 2, anim = true) {
   R.zoom = z;
   [R.tx, R.ty] = clampPan(fx - (fx - R.tx) * k, fy - (fy - R.ty) * k, z);
   applyTransform(anim);
-  if (z < 1.12) curSlide()?.pages.forEach(clearHi); else scheduleHi();
+  if (z < 1.12) for (const m of R.mounted.values()) m.pages.forEach(clearHi);
+  else scheduleHi(0);
+  learnInset();
   emit('zoom', { zoom: z });
 }
-function resetZoom() {
+function resetZoom(keep = null) {
   cancelAnimationFrame(R.glideRaf);
   R.zoom = 1; R.tx = R.ty = 0;
   for (const s of R.mounted.values()) {
     s.zoomer.style.transition = 'none';
     s.zoomer.style.transform = '';
-    s.pages.forEach(clearHi);
+    if (s !== keep) s.pages.forEach(clearHi);
   }
   stage.classList.remove('zoomed');
   $('#zoom-label').textContent = '100%';
@@ -502,13 +544,78 @@ $('#zoom-in').onclick = () => zoomTo(R.zoom * 1.3);
 $('#zoom-out').onclick = () => zoomTo(R.zoom / 1.3);
 $('#zoom-fit').onclick = () => zoomTo(1);
 
-/* Turning a page keeps the zoom, so you can read a whole book zoomed in. The new
- * page lands at its top going forward (bottom going back), keeping the same
- * horizontal position. */
-function landing(s, dir, z = R.zoom, tx = R.tx) {
-  const b = s.box;
-  const [x0, x1] = axisBounds(b.x, b.w, R.vw, z), [y0, y1] = axisBounds(b.y, b.h, R.vh, z);
-  return [clamp(tx, x0, x1), dir > 0 ? y1 : y0];
+/* Zoomed reading.
+ *
+ * Turning a page keeps the zoom. Going forward the new page opens at its top
+ * left, going back at its bottom right, like reading on.
+ *
+ * Tapping the screen edges (or Space / Page Up / Page Down) while zoomed moves
+ * one screen at a time in reading order: down the page, then to the top of the
+ * next column (or the right-hand page of a spread), then on to the next page.
+ *
+ * "Columns" are the screen-wide strips a page is read in. They keep the margin
+ * you zoomed past (insetFrac, learnt from where you put the view), so a page
+ * zoomed to its text opens zoomed to its text, not to the blank margin. */
+const READ_OVERLAP = 0.1;       // each step keeps this much of the last screen in view
+
+function learnInset(s = curSlide(), z = R.zoom) {
+  if (!s?.laidOut || z <= 1.02) return;
+  const b = s.box, [x0, x1] = axisBounds(b.x, b.w, R.vw, z);
+  if (R.tx <= x0 + 2 || R.tx >= x1 - 2) return;          // pushed against an edge (about to swipe on?): not a choice of margin
+  const L = -R.tx, Rt = L + R.vw;
+  for (const p of s.pages) {
+    const a = p.x * z, e = (p.x + p.wpx) * z;
+    if (e - a > R.vw && L >= a - 1 && Rt <= e + 1) { R.insetFrac = Math.max(0, Math.min(L - a, e - Rt)) / (e - a); return; }
+  }
+}
+/** The horizontal stops (tx values) for reading slide s, in reading order. */
+function columns(s, z = R.zoom) {
+  const b = s.box, [x0, x1] = axisBounds(b.x, b.w, R.vw, z);
+  if (x1 - x0 < 2) return [x0];
+  const step = R.vw * (1 - READ_OVERLAP), stops = [];
+  for (const p of s.pages) {
+    const W = p.wpx * z, inset = Math.min(R.insetFrac * W, W / 2);
+    const a = p.x * z + inset, e = (p.x + p.wpx) * z - inset;
+    if (e - a <= R.vw) { stops.push((a + e - R.vw) / 2); continue; }
+    for (let L = a; ; L += step) {
+      if (L + R.vw >= e - 1) { stops.push(e - R.vw); break; }
+      stops.push(L);
+    }
+  }
+  const out = [];
+  for (const L of stops) {
+    const t = clamp(-L, x0, x1);
+    if (!out.length || Math.abs(out[out.length - 1] - t) > 4) out.push(t);
+  }
+  return out;
+}
+function landing(s, dir, z = R.zoom) {
+  const b = s.box, [y0, y1] = axisBounds(b.y, b.h, R.vh, z);
+  const cols = columns(s, z);
+  return dir > 0 ? [cols[0], y1] : [cols[cols.length - 1], y0];
+}
+/** One screen on (dir 1) or back (dir -1) in reading order; past the end of the page, turn it. */
+function readingStep(dir) {
+  const s = curSlide();
+  if (!s?.laidOut || R.zoom <= 1.02) return turn(dir);
+  finishAnim();
+  cancelAnimationFrame(R.glideRaf);
+  learnInset(s);
+  const b = s.box, [y0, y1] = axisBounds(b.y, b.h, R.vh, R.zoom);
+  let tx = R.tx, ty;
+  if (dir > 0 ? R.ty > y0 + 2 : R.ty < y1 - 2) {
+    ty = clamp(R.ty - dir * R.vh * (1 - READ_OVERLAP), y0, y1);   // further down (up) this column
+  } else {
+    const cols = columns(s);
+    const next = dir > 0 ? cols.find((c) => c < R.tx - 4) : cols.findLast((c) => c > R.tx + 4);
+    if (next === undefined) return turn(dir);
+    tx = next; ty = dir > 0 ? y1 : y0;
+  }
+  R.tx = tx; R.ty = ty;
+  applyTransform(true);
+  if (R.hiBusy) s.pages.forEach((p) => p.hiTask?.cancel());   // drop work for the screen you just left
+  renderHi();
+  R.lastActivity = Date.now();
 }
 /** Pre-zoom the neighbouring slides so they slide in already at their landing spot. */
 function prepNeighbours() {
@@ -573,27 +680,27 @@ function bump(dir) {
 }
 
 function commitTurn(idx) {
-  const z = R.zoom > 1.02 ? R.zoom : 0, tx = R.tx, dir = Math.sign(idx - R.cur);
+  const z = R.zoom > 1.02 ? R.zoom : 0, dir = Math.sign(idx - R.cur);
   R.cur = idx;
   setTrack(0);
-  resetZoom();
-  if (z) keepZoom(curSlide(), dir, z, tx);
+  resetZoom(curSlide());                                 // the new page keeps any sharp area drawn for it in advance
+  if (z) keepZoom(curSlide(), dir, z);
   clearHits();
   ensureWindow();
   afterNavigate();
   if (settings.autoHide && !R.chromeHidden) setChrome(false);
 }
 
-function keepZoom(s, dir, z, tx) {
+function keepZoom(s, dir, z) {
   if (!s) return;
   if (!s.laidOut) {                                      // still measuring: zoom in once it's laid out, unless you've moved on
-    s.ready?.then(() => { if (curSlide() === s && R.zoom === 1 && !gest && !R.anim) keepZoom(s, dir, z, tx); });
+    s.ready?.then(() => { if (curSlide() === s && R.zoom === 1 && !gest && !R.anim) keepZoom(s, dir, z); });
     return;
   }
   R.zoom = z;
-  [R.tx, R.ty] = landing(s, dir, z, tx);
+  [R.tx, R.ty] = landing(s, dir, z);
   applyTransform(false);
-  scheduleHi();
+  renderHi();
 }
 
 /** Jump to any page with a quick fade instead of sliding through everything between. */
@@ -778,6 +885,7 @@ stage.addEventListener('pointermove', (e) => {
     g.off = over;
     applyTransform(false);
     setTrack(over);
+    hiFollow();
   }
 });
 
@@ -819,7 +927,7 @@ function releaseDrag(g) {
 }
 
 function glide(vx, vy) {
-  if (Math.hypot(vx, vy) < 0.15) { scheduleHi(); return; }
+  if (Math.hypot(vx, vy) < 0.15) { renderHi(); learnInset(); return; }
   let last = performance.now();
   const step = (now) => {
     const dt = Math.min(now - last, 32); last = now;
@@ -830,7 +938,8 @@ function glide(vx, vy) {
     if (ny === R.ty) vy = 0;
     R.tx = nx; R.ty = ny;
     applyTransform(false);
-    if (Math.hypot(vx, vy) > 0.03) R.glideRaf = requestAnimationFrame(step); else scheduleHi();
+    if (Math.hypot(vx, vy) < 0.4) hiFollow();             // slowing down: start sharpening before it stops
+    if (Math.hypot(vx, vy) > 0.03) R.glideRaf = requestAnimationFrame(step); else { renderHi(); learnInset(); }
   };
   R.glideRaf = requestAnimationFrame(step);
 }
@@ -859,7 +968,8 @@ function endPinch() {
   R.zoom = Math.min(R.zoom, MAX_ZOOM);
   [R.tx, R.ty] = clampPan(R.tx, R.ty);
   applyTransform(true);
-  scheduleHi();
+  renderHi();
+  learnInset();
   emit('zoom', { zoom: R.zoom });
 }
 document.addEventListener('gesturestart', (e) => e.preventDefault());
@@ -875,7 +985,7 @@ function onTap(g, e) {
   const zone = zoomed ? 0.15 : 0.22;                    // narrower when zoomed, leaving room to double-tap out
   if (settings.tapTurn && (fx < zone || fx > 1 - zone)) {
     clearTimeout(R.tapTimer); R.lastTap = null;
-    return turn(fx < 0.5 ? -1 : 1);
+    return readingStep(fx < 0.5 ? -1 : 1);            // zoomed: a screen at a time; otherwise a page
   }
   const now = performance.now();
   if (R.lastTap && now - R.lastTap.t < 320 && Math.hypot(x - R.lastTap.x, y - R.lastTap.y) < 36) {
@@ -897,7 +1007,7 @@ stage.addEventListener('wheel', (e) => {
   if (R.zoom > 1.02) {
     [R.tx, R.ty] = clampPan(R.tx - dx, R.ty - dy);
     applyTransform(false);
-    return scheduleHi();
+    return hiFollow();
   }
   const now = performance.now();
   const d = Math.abs(dx) > Math.abs(dy) ? dx : dy;
@@ -937,9 +1047,9 @@ addEventListener('keydown', (e) => {
     case 'ArrowLeft': return step(R.vw * 0.4, 0, -1);
     case 'ArrowDown': return step(0, -R.vh * 0.4, 1);
     case 'ArrowUp': return step(0, R.vh * 0.4, -1);
-    case 'PageDown': e.preventDefault(); return turn(1);
-    case 'PageUp': e.preventDefault(); return turn(-1);
-    case ' ': e.preventDefault(); return turn(e.shiftKey ? -1 : 1);
+    case 'PageDown': e.preventDefault(); return readingStep(1);
+    case 'PageUp': e.preventDefault(); return readingStep(-1);
+    case ' ': e.preventDefault(); return readingStep(e.shiftKey ? -1 : 1);
     case 'Home': return goToPage(1);
     case 'End': return goToPage(R.N);
     case '=': case '+': if (mod) { e.preventDefault(); zoomTo(R.zoom * 1.3); } return;
