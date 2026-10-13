@@ -11,12 +11,7 @@
 import '../vendor/foliate/view.js';
 import { openEbookFile, pageCountOf } from './formats.js';
 import { settings } from './settings.js';
-
-export const FONTS = {
-  book: null,                                            // whatever the book asks for
-  serif: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Noto Serif", serif',
-  sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-};
+import { fontStack, fontFaceCss } from './fonts.js';
 
 function readerCss(fixed) {
   const cs = getComputedStyle(document.documentElement);
@@ -24,17 +19,18 @@ function readerCss(fixed) {
   const accent = cs.getPropertyValue('--accent').trim();
   const theme = document.documentElement.dataset.theme, dark = theme === 'dark';
   if (fixed) return `html, body { background: transparent !important; }`;
-  const font = FONTS[settings.textFont] || null;
+  const font = fontStack(settings.textFont);
   const size = settings.textSize || 100;
   const spacing = settings.lineSpacing || 1.5;
   return `
     @namespace epub "http://www.idpf.org/2007/ops";
+    ${font ? fontFaceCss(settings.textFont) : ''}
     html { color-scheme: ${dark ? 'dark' : 'light'}; }
     html, body { background: ${bg} !important; color: ${fg} !important; }
     html { font-size: ${size}% !important; }
     ${dark || theme === 'sepia' ? 'body * { color: inherit !important; background-color: transparent !important; }' : ''}
     a:link, a:visited { color: ${accent} !important; }
-    ${font ? `body, body * { font-family: ${font} !important; }` : ''}
+    ${font ? `body, body *:not(pre, code, kbd, samp, tt, pre *) { font-family: ${font} !important; }` : ''}
     p, li, blockquote, dd { line-height: ${spacing} !important; -webkit-hyphens: auto; hyphens: auto; widows: 2; orphans: 2; }
     img, svg, video { max-width: 100%; }
     ${dark ? 'img { filter: brightness(.88); }' : ''}
@@ -64,6 +60,10 @@ export async function openFlow({ data, format, fileName, container, start, dir, 
     r.setAttribute('max-inline-size', '680px');
   }
   r.setAttribute('animated', '');
+  // foliate re-lays out the page whenever its box resizes, even while a chapter's frame is between
+  // documents (it then throws); skip those moments, the chapter lays itself out once it has loaded.
+  const render = r.render.bind(r);
+  r.render = () => { if (r.getContents()[0]?.doc?.documentElement) render(); };
 
   const total = pageCountOf(book);
   let loc = null;
@@ -157,6 +157,7 @@ export async function openFlow({ data, format, fileName, container, start, dir, 
       return tocItem?.label?.trim() || '';
     },
     destroy() {
+      r.render = () => {};                                // the paginator's resize observer outlives close()
       try { view.close(); } catch {}
       try { book.destroy?.(); } catch {}
       view.remove();

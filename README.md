@@ -79,7 +79,7 @@ Scripts inside EPUBs and web pages never run: the app's content security policy 
 - **Bookmark:** tap the ribbon at the top right (or press **B**).
 - **Contents / Bookmarks / Search:** the list button opens the side panel.
 - **Jump anywhere:** drag the slider at the bottom (it previews the chapter), or tap "Page X of Y" to type a page number. After any jump, a **Back to page N** button takes you back.
-- **Tт menu:** Auto/Light/Sepia/Dark theme, single/spread layout, zoom, dark pages in dark mode, tap-the-edge page turning, hide-the-bars, keep the screen awake. In re-flowing books (EPUB, Kindle, Word…) zoom is replaced by **text size**, **font** and **line spacing**, and **Ctrl/⌘ +/−/0** change the text size.
+- **Tт menu:** Auto/Light/Sepia/Dark theme, single/spread layout, zoom, dark pages in dark mode, tap-the-edge page turning, hide-the-bars, keep the screen awake. In re-flowing books (EPUB, Kindle, Word…) zoom is replaced by **text size**, **font** and **line spacing**. The fonts are the book's own, a serif, and six bundled free fonts: Arimo (like Arial/Helvetica), DejaVu Sans (like Verdana), Comic Neue (like Comic Sans), Lexend, Atkinson Hyperlegible (for low vision) and OpenDyslexic (for dyslexia). PDFs keep the fonts printed in them, and **Ctrl/⌘ +/−/0** change the text size.
 - **Reading direction:** **Tт → Direction** (Auto / Left to right / Right to left), saved per book, in both readers. Auto reads it from the file (a PDF's right-to-left setting, an EPUB's page direction or language) or from Hebrew/Arabic text. Right to left flips taps, swipes, arrow keys, the slider, two-page spreads and the zoomed reading order (which starts top right), so it also suits manga.
 - **It remembers your spot:** your position is saved continuously. If you close the app while reading, it reopens straight to that page (you can turn this off in Library → settings).
 
@@ -93,7 +93,7 @@ Each device is separate. To copy your albums, bookmarks and reading positions: *
 - Everything works **offline** after the first launch.
 - The Library settings show how much storage the app uses on the device.
 - **Highlights and notes were removed** in this version. If an older version of Folio saved any on your device, they are left untouched in the app's storage (nothing is deleted), they just aren't shown or exported any more. Backups made by older versions restore fine; their highlights are ignored.
-- PDF rendering uses Mozilla's pdf.js (Apache-2.0 license, included in `vendor/pdfjs`). EPUB, Kindle, FB2 and comic books use [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT, `vendor/foliate`), and Word files are converted with [mammoth.js](https://github.com/mwilliamson/mammoth.js) (BSD-2-Clause, `vendor/mammoth`). Both are unmodified copies; `VERSION` in each folder says which.
+- PDF rendering uses Mozilla's pdf.js (Apache-2.0 license, included in `vendor/pdfjs`). EPUB, Kindle, FB2 and comic books use [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT, `vendor/foliate`), and Word files are converted with [mammoth.js](https://github.com/mwilliamson/mammoth.js) (BSD-2-Clause, `vendor/mammoth`). Both are unmodified copies; `VERSION` in each folder says which. The reading fonts in `vendor/fonts` are free fonts under the SIL Open Font License (Arimo, Comic Neue, Lexend, Atkinson Hyperlegible, OpenDyslexic) and the Bitstream Vera licence (DejaVu Sans); see `vendor/fonts/README.md` and the `LICENSE` in each folder.
 
 ## For developers
 
@@ -108,6 +108,7 @@ No build step: it's plain ES modules served as static files.
 | `js/reader.js` | The reader: bars, contents, bookmarks, search; pages, gestures, spreads and zoom for PDFs |
 | `js/flow.js` | The text reader for every other format (wraps foliate-js) |
 | `js/formats.js` | Detecting formats and locked books; Word/text/Markdown/HTML → book |
+| `js/fonts.js` | The reading fonts offered in the text reader (files in `vendor/fonts`) |
 | `js/db.js` | IndexedDB (v2: books, files, bookmarks, albums) |
 | `js/ui.js`, `js/settings.js`, `js/pdf.js` | Shared helpers, settings/theme, pdf.js setup |
 | `sw.js`, `manifest.webmanifest` | Offline cache, Android share target |

@@ -255,7 +255,7 @@ h1, h2, h3, h4 { margin: 0; }
 .flow-stage foliate-view { display: block; width: 100%; height: 100%; }
 .flow-stage.marked::after { content: ""; position: absolute; top: var(--sat); right: calc(var(--sar) + 6%); width: 22px; height: 38px; z-index: 3; pointer-events: none;
   background: var(--accent); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%); }
-#reader.flow .pdf-only, #reader:not(.flow) .flow-only, #reader.fixed .flow-only { display: none; }
+#reader.flow .pdf-only, #reader:not(.flow) .flow-only, #reader.fixed .flow-only, #reader.flow:not(.fixed) .font-note { display: none; }
 #dialog-msg { white-space: pre-line; }
 #text-size-label { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; }
 .stage {
@@ -413,9 +413,15 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 
 
 /* Sheets & modals */
 .sheet { position: fixed; z-index: 25; left: 50%; transform: translateX(-50%); bottom: calc(var(--sab) + 104px); width: min(460px, calc(100vw - 24px)); animation: rise .22s var(--ease); }
-.sheet-inner { background: var(--surface); border-radius: 20px; box-shadow: var(--shadow-lg); padding: 6px 16px; border: 1px solid var(--line); }
+.sheet-inner { background: var(--surface); border-radius: 20px; box-shadow: var(--shadow-lg); padding: 6px 16px; border: 1px solid var(--line); max-height: calc(100dvh - var(--sab) - 104px - 72px - var(--sat)); overflow-y: auto; overscroll-behavior: contain; }
 .sheet-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .sheet-row:last-child { border-bottom: 0; }
+.sheet-row.stack { flex-direction: column; align-items: stretch; gap: 8px; }
+.font-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.font-grid button { text-align: start; padding: 7px 10px 8px; border-radius: 10px; background: var(--surface-2); border: 2px solid transparent; min-width: 0; }
+.font-grid button.active { border-color: var(--accent); background: var(--surface); }
+.font-grid .f-name { display: block; font-size: 15.5px; line-height: 1.25; color: var(--text); overflow-wrap: anywhere; }
+.font-grid small { display: block; font-size: 12px; line-height: 1.3; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sheet-row .label { font-size: 15px; }
 .sheet-row .label small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
 .segmented { display: flex; background: var(--surface-2); padding: 3px; border-radius: 10px; flex: none; }

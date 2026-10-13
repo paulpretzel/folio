@@ -20,6 +20,7 @@
  */
 import { pdfjsLib, openPdf } from './pdf.js';
 import { openFlow } from './flow.js';
+import { FONT_CHOICES, fontStack, loadFontPreviews } from './fonts.js';
 import { db } from './db.js';
 import { $, $$, clamp, uid, esc, icon, relTime, toast, hideToast, pushOverlay, closeTop, topOverlay, promptDialog, reducedMotion, ls } from './ui.js';
 import { settings, saveSettings, applyTheme } from './settings.js';
@@ -1448,13 +1449,20 @@ function syncSettingsSheet() {
   for (const b of $('#layout-seg').children) b.classList.toggle('active', b.dataset.layout === settings.layout);
   $('#text-size-label').textContent = `${settings.textSize}%`;
   for (const b of $('#dir-seg').children) b.classList.toggle('active', b.dataset.dir === (R.book?.dir || 'auto'));
-  for (const b of $('#font-seg').children) b.classList.toggle('active', b.dataset.font === settings.textFont);
+  const font = FONT_CHOICES.some((f) => f.key === settings.textFont) ? settings.textFont : 'book';
+  for (const b of $('#font-seg').children) {
+    b.classList.toggle('active', b.dataset.font === font);
+    b.setAttribute('aria-pressed', String(b.dataset.font === font));
+  }
   for (const b of $('#spacing-seg').children) b.classList.toggle('active', +b.dataset.spacing === settings.lineSpacing);
 }
 $('#settings-btn').onclick = () => {
   const open = settingsSheet.hidden;
   settingsSheet.hidden = !open;
-  if (open) syncSettingsSheet();
+  if (open) {
+    syncSettingsSheet();
+    if (R.flow && !R.flow.fixed) loadFontPreviews();
+  }
 };
 for (const seg of [$('#theme-seg'), $('#lib-theme-seg')]) {
   seg.addEventListener('click', (e) => {
@@ -1651,6 +1659,11 @@ function setTextSize(v) {
 }
 $('#text-smaller').onclick = () => setTextSize(settings.textSize - 10);
 $('#text-bigger').onclick = () => setTextSize(settings.textSize + 10);
+// The font picker: each name is shown in its own font.
+$('#font-seg').innerHTML = FONT_CHOICES.map((f) => {
+  const stack = fontStack(f.key);
+  return `<button data-font="${f.key}" aria-pressed="false"><span class="f-name"${stack ? ` style='font-family: ${stack}'` : ''}>${esc(f.label)}</span><small>${esc(f.note)}</small></button>`;
+}).join('');
 $('#font-seg').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
