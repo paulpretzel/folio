@@ -61,7 +61,8 @@ fine = ParagraphStyle('fine', parent=text, fontSize=6, leading=8, textColor=MUTE
 TRY_BG = HexColor('#f7e6dc')
 
 # One page each: (title, lead line, blocks). A block is plain text, or (kind, text) where kind is
-# 'try' (the thing to do on this page, drawn in a box) or 'fine' (small print, to practise zooming).
+# 'try' (the thing to do on this page, drawn in a box), 'fine' (small print, to practise zooming)
+# or 'icon' (the library's Free classics button, drawn as it looks in the app).
 PAGES = [
     ('Zoom in', 'Make small text bigger.', [
         ('try', 'Double-tap anywhere on this page to zoom in. Double-tap again to zoom out.'),
@@ -84,20 +85,22 @@ PAGES = [
         'The list also shows your bookmarks and lets you search the book.',
     ]),
     ('Your library', 'Add your own books.', [
-        'In the library, tap <b>+</b> to add PDFs from Files, Drive or Downloads.',
+        'In the library, tap <b>+</b>. <b>Auto select</b> adds every book in a folder you pick; '
+        '<b>Manual select</b> lets you pick the books yourself.',
         'Folio suggests an album for each new book, such as Fiction or Textbooks. Tap the suggestion to file it.',
         'Folio saves your page in every book, so you always pick up where you left off.',
     ]),
     ('Keep a backup', 'Your books stay on this device.', [
-        'Uninstalling Folio deletes the books inside it, so keep your PDFs in Files or Drive too.',
+        'Uninstalling Folio deletes the books inside it, so keep your book files in Files or Drive too.',
         'In the library, tap <b>Settings</b>, then <b>Back up</b>. This saves your albums, bookmarks '
         'and reading positions to a small file.',
-        'On a new device, tap <b>Restore</b> and add the same PDFs.',
+        'On a new device, tap <b>Restore</b> and add the same books.',
     ]),
-    ('Free books', 'Folio opens PDFs you already have.', [
-        'These sites offer free books you can download legally:',
-        '<b>Project Gutenberg</b> (gutenberg.org) for classic books.',
-        '<b>OpenStax</b> (openstax.org) for college textbooks.',
+    ('Free classics', 'Great books, free, built in.', [
+        'In the library, tap the <b>shelf button</b> next to Settings:',
+        ('icon', 'library'),
+        'Tap a book, then <b>Get</b>. It goes into your Classics album and reads offline.',
+        'For free college textbooks, try <b>OpenStax</b> (openstax.org).',
     ]),
 ]
 
@@ -130,7 +133,7 @@ def cover(c):
     c.setLineWidth(1.5)
     c.line(W / 2 - 36, H * 0.62 - 72, W / 2 + 36, H * 0.62 - 72)
     sub = ParagraphStyle('sub', parent=lead, alignment=TA_CENTER)
-    para(c, 'Your PDFs, read like books.', sub, M, H * 0.62 - 90, W - 2 * M)
+    para(c, 'Your books, read like books.', sub, M, H * 0.62 - 90, W - 2 * M)
     go = ParagraphStyle('go', parent=action, alignment=TA_CENTER)
     para(c, 'Swipe left or tap the right edge of the screen to turn the page.', go, M + 6, 120, W - 2 * M - 12)
 
@@ -147,6 +150,32 @@ def try_box(c, text_, y):
     return y - h - 2 * pad - 18
 
 
+def icon_button(c, y):
+    """The Free classics button (the i-library icon in index.html), centred, so it's easy to spot."""
+    size, s = 44, 44 / 32           # a 44 pt button; the 24-unit icon gets 4 units of padding each side
+    x0, top = (W - size) / 2, y - 2
+    c.setFillColor(HexColor('#ffffff'))
+    c.setStrokeColor(RULE)
+    c.setLineWidth(1)
+    c.roundRect(x0, top - size, size, size, 12, stroke=1, fill=1)
+    c.saveState()
+    c.translate(x0 + 4 * s, top - 4 * s)
+    c.scale(s, -s)                  # icon coordinates run downwards, like SVG
+    c.setStrokeColor(INK)
+    c.setLineWidth(1.8)
+    c.setLineJoin(1)
+    for pts in ([(4, 4), (8, 4), (8, 20), (4, 20)], [(10, 4), (14, 4), (14, 20), (10, 20)],
+                [(15.5, 5.3), (19.3, 4.3), (23.3, 19.8), (19.5, 20.8)]):
+        p = c.beginPath()
+        p.moveTo(*pts[0])
+        for pt in pts[1:]:
+            p.lineTo(*pt)
+        p.close()
+        c.drawPath(p, stroke=1, fill=0)
+    c.restoreState()
+    return top - size - 18
+
+
 def page(c, n, title, lead_line, blocks):
     key = f'p{n}'
     c.bookmarkPage(key)
@@ -159,6 +188,8 @@ def page(c, n, title, lead_line, blocks):
         kind, t = b if isinstance(b, tuple) else ('text', b)
         if kind == 'try':
             y = try_box(c, t, y)
+        elif kind == 'icon':
+            y = icon_button(c, y)
         else:
             y = para(c, t, fine if kind == 'fine' else text, M, y, W - 2 * M)
     c.setFont('Serif-Italic', 11)
@@ -176,7 +207,7 @@ def last_page(c, n):
     c.setStrokeColor(ACCENT)
     c.setLineWidth(1.5)
     c.line(W / 2 - 36, H * 0.6 - 20, W / 2 + 36, H * 0.6 - 20)
-    y = try_box(c, 'Tap the back arrow at the top left to go to your library and add your first book.', H * 0.6 - 40)
+    y = try_box(c, 'Tap the back arrow at the top left to go to your library and pick your first book.', H * 0.6 - 40)
     centred = ParagraphStyle('centred', parent=lead, alignment=TA_CENTER, fontSize=12, leading=17)
     para(c, 'You can delete this guide from its … menu in the library.', centred, M, y, W - 2 * M)
     page_number(c, n)

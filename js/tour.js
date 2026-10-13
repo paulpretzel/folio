@@ -1,7 +1,8 @@
 /* First-run tour. It opens "Welcome to Folio", a short guide book, and walks you through it
    page by page: each page explains one thing, and the tour points at the screen (an arrow on
    the real button, or an animated hint on the page) and waits until you've done it. Once you
-   reach the end it takes you back to the library and shows where to add your own books. */
+   reach the end it takes you back to the library and shows where to get your first book: the
+   free classics, or your own books. */
 import { $, ls, toast, closeTop, reducedMotion } from './ui.js';
 import { db } from './db.js';
 import { getBooks, importFiles, loadLibrary } from './library.js';
@@ -43,7 +44,8 @@ const STEPS = [
   { page: 8, wait: READ_MS },
   { page: 9, wait: READ_MS },
   { page: 9, target: '#close-reader', text: 'Tap the back arrow', until: 'close', bars: true },
-  { target: '#add-book-btn', text: 'Add your first book here', next: true },
+  { target: '#store-btn', text: 'Choose your first book here, free', next: true },
+  { target: '#add-book-btn', text: 'Or add books you already have', next: true },
   { target: '#lib-settings-btn', text: 'Back up your library in Settings', next: true },
 ];
 const SHOW_BARS = { gesture: 'tap', text: 'Tap the middle to show the menus' };
@@ -70,7 +72,7 @@ root.innerHTML = `
   <div class="tour-card" role="dialog" aria-labelledby="tour-card-title">
     <div class="empty-art"><svg><use href="#i-book"/></svg></div>
     <h3 id="tour-card-title">Welcome to Folio</h3>
-    <p class="muted">Your PDFs, read like books.</p>
+    <p class="muted">Your books, read like books.</p>
     <button class="btn primary big" id="tour-start" type="button">Show me around</button>
     <button class="btn ghost" id="tour-skip-all" type="button">Skip</button>
   </div>`;

@@ -4,6 +4,7 @@ import { initLibrary, loadLibrary, importFiles, getBooks } from './library.js';
 import { initReader, openBook } from './reader.js';
 import { initTour, maybeStartTour } from './tour.js';
 import { initStore } from './store.js';
+import './addbooks.js';
 import { ls } from './ui.js';
 
 initReader({ onClose: () => loadLibrary() });
