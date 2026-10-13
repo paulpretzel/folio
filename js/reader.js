@@ -8,8 +8,19 @@
  *       └ .slide ×3 ─ placed at (index − current) × 100%
  *          └ .zoomer ─ pinch / double-tap zoom + pan lives here (current slide only)
  *             └ .page ×1–2 ─ one page, or a two-page spread on wide screens
+ *
+ * Other formats (EPUB, Kindle, Word, text…) are shown by the text reader in flow.js, inside
+ * #flow-stage, behind the same bars, contents, bookmarks and search. R.flow is set while one is
+ * open, and the handlers below branch on it.
+ *
+ * Right-to-left books (Arabic, Hebrew, manga…): R.rtl flips everything on screen, so the next
+ * page comes in from the left, spreads read right page first, and zoomed reading starts top
+ * right. Logic stays in reading order ("next" is +1); only screen positions and directions use
+ * S() (−1 for right to left). Per book: book.dir is 'ltr' | 'rtl' | unset (= detect).
  */
 import { pdfjsLib, openPdf } from './pdf.js';
+import { openFlow } from './flow.js';
+import { FONT_CHOICES, fontStack, loadFontPreviews } from './fonts.js';
 import { db } from './db.js';
 import { $, $$, clamp, uid, esc, icon, relTime, toast, hideToast, pushOverlay, closeTop, topOverlay, promptDialog, reducedMotion, ls } from './ui.js';
 import { settings, saveSettings, applyTheme } from './settings.js';
@@ -27,6 +38,7 @@ const track = $('#track');
 const settingsSheet = $('#settings-sheet');
 const panel = $('#panel');
 const scrubber = $('#scrubber');
+const flowStage = $('#flow-stage');
 
 let hooks = {};
 export function initReader(h) { hooks = h; }
@@ -44,10 +56,14 @@ function freshState() {
     anim: null, lastTap: null, wheelAcc: 0, wheelAt: 0, wheelLock: 0,
     hiBusy: false, hiAgain: false, atRest: true, inkByPage: new Map(), inkVer: 0, typical: [],
     searchToken: 0, tab: 'toc', scrubbing: false,
+    flow: null, loc: null, flowReady: false,   // the text reader, and where it is (see flow.js)
+    rtl: false, buf: null,
   };
 }
 let R = freshState();
 export const isReaderOpen = () => R.open;
+/** +1 for left-to-right books, −1 for right-to-left: turns reading order into screen direction. */
+const S = () => (R.rtl ? -1 : 1);
 /** The page numbers on screen right now (two in a spread), or none when no book is open. */
 export const visiblePages = () => (R.open && R.slides[R.cur]) || [];
 /** Tell the rest of the app what the reader just did (the tour listens for these). */
@@ -60,11 +76,13 @@ export async function openBook(id) {
   const book = await db.get('books', id);
   if (!book) return toast('That book is no longer in your library');
   const buf = await db.get('files', id);
-  if (!buf) return toast('The PDF file for this book is missing');
+  if (!buf) return toast('The file for this book is missing');
+  const isFlow = !!book.format && book.format !== 'pdf';
 
   R = freshState();
   hideToast();
   R.book = book;
+  R.buf = buf;
   R.open = true;
   const gen = R.gen;
 
@@ -76,9 +94,13 @@ export async function openBook(id) {
   $('#loading').hidden = false;
   $('#backjump').hidden = true;
   track.replaceChildren();
+  stage.hidden = isFlow;
+  flowStage.hidden = !isFlow;
+  readerEl.classList.toggle('flow', isFlow);
   applyTheme();
   pushOverlay('reader', closeReaderNow);
   ls.set('openBook', id);
+  if (isFlow) return openFlowBook(book, buf, gen);
 
   try {
     R.pdf = await openPdf(new Uint8Array(buf));
@@ -91,6 +113,9 @@ export async function openBook(id) {
   }
   if (gen !== R.gen) return;
   R.N = R.pdf.numPages;
+  R.rtl = book.dir ? book.dir === 'rtl' : await pdfLooksRtl(gen);
+  if (gen !== R.gen) return;
+  applyDirUI();
   await pageSize(1);
   const bms = await db.byBook('bookmarks', id);
   if (gen !== R.gen) return;
@@ -138,6 +163,11 @@ function closeReaderNow() {
   track.replaceChildren();
   setTrack(0);
   R.pdf?.destroy();
+  // A book still loading is left to openFlowBook to tear down: pulling its frame out mid-load trips foliate up.
+  if (R.flow) { R.flow.destroy(); flowStage.replaceChildren(); }
+  readerEl.classList.remove('flow', 'fixed', 'rtl');
+  stage.hidden = false;
+  flowStage.hidden = true;
   releaseWake();
   R = { ...freshState(), open: false };
   ptrs.clear(); gest = null;
@@ -191,7 +221,7 @@ function buildSlides() {
 }
 
 const curSlide = () => R.mounted.get(R.cur);
-const firstPage = () => R.slides[R.cur][0];
+const firstPage = () => (R.flow ? R.loc?.page || 1 : R.slides[R.cur][0]);
 
 function makePage(n) {
   const el = document.createElement('div');
@@ -214,7 +244,10 @@ function mountSlide(i) {
   s.zoomer.className = 'zoomer';
   s.el.append(s.zoomer);
   for (const p of s.pages) { s.zoomer.append(p.el); markPage(p); }
-  if (s.pages.length === 2) { s.pages[0].el.classList.add('left'); s.pages[1].el.classList.add('right'); }
+  if (s.pages.length === 2) {                           // in a right-to-left spread the first page is on the right
+    s.pages[R.rtl ? 1 : 0].el.classList.add('left');
+    s.pages[R.rtl ? 0 : 1].el.classList.add('right');
+  }
   positionSlide(s);
   track.append(s.el);
   R.mounted.set(i, s);
@@ -222,7 +255,7 @@ function mountSlide(i) {
   return s;
 }
 const positionSlide = (s) => {
-  s.el.style.transform = `translate3d(${(s.idx - R.cur) * 100}%,0,0)`;
+  s.el.style.transform = `translate3d(${(s.idx - R.cur) * S() * 100}%,0,0)`;
   s.el.classList.toggle('on', s.idx === R.cur);       // neighbours are only visible while a drag / turn is under way
 };
 
@@ -266,8 +299,10 @@ function layoutSlideSync(s, sizes) {
   const drawW = sumW * scale;
   let x = pad.l + (availW - drawW) / 2;
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  s.pages.forEach((p, i) => {
-    const z = sizes[i];
+  const order = s.pages.map((_, i) => i);
+  if (R.rtl) order.reverse();                            // lay out left to right on screen
+  order.forEach((i) => {
+    const p = s.pages[i], z = sizes[i];
     p.scale = scale;
     p.wpx = z.w * scale; p.hpx = z.h * scale;
     p.x = x; p.y = pad.t + (availH - p.hpx) / 2;
@@ -715,7 +750,7 @@ function settle(dir, from = 0) {
   const W = R.vw;
   const target = R.cur + dir;
   if (dir === 0 || target < 0 || target >= R.slides.length) return runAnim(from, 0, 220);   // no page there: spring back
-  const to = -dir * W;
+  const to = -dir * S() * W;
   return runAnim(from, to, clamp(Math.abs(to - from) / W * 360, 150, 360), () => commitTurn(target));
 }
 
@@ -725,6 +760,7 @@ function fitTextForZoomedTurn() {
 }
 function turn(dir) {
   if (!R.open) return;
+  if (R.flow) return void (dir > 0 ? R.flow.next() : R.flow.prev());
   finishAnim();
   cancelAnimationFrame(R.glideRaf);
   const t = R.cur + dir;
@@ -735,7 +771,12 @@ function turn(dir) {
 }
 function bump(dir) {
   if (reducedMotion.matches) return;
-  track.animate([{ transform: trk(0) }, { transform: trk(-dir * 22) }, { transform: trk(0) }], { duration: 260, easing: 'ease-out' });
+  track.animate([{ transform: trk(0) }, { transform: trk(-dir * S() * 22) }, { transform: trk(0) }], { duration: 260, easing: 'ease-out' });
+}
+/** Turn towards the right (d = 1) or left (d = −1) of the screen, whichever way the book reads. */
+function turnScreen(d) {
+  if (R.flow) return void (d > 0 ? R.flow.goRight() : R.flow.goLeft());
+  turn(d * S());
 }
 
 function commitTurn(idx) {
@@ -780,6 +821,10 @@ function afterNavigate() {
 
 function goToPage(n, { record = true } = {}) {
   n = clamp(Math.round(n), 1, R.N);
+  if (R.flow) {
+    if (record) { setBackJump(); R.backLanding = n; }
+    return void R.flow.goToPage(n);
+  }
   const idx = R.slideOf[n];
   if (record) { setBackJump(); R.backLanding = R.slides[idx][0]; }    // before jumping: afterNavigate() compares against it
   if (idx === R.cur) { if (zoomedIn()) goRest(); }
@@ -795,6 +840,13 @@ function setBackJump() {
 $('#backjump').onclick = () => {
   if (R.backJump == null) return;
   const here = firstPage();
+  if (R.flow) {
+    R.backLanding = R.backJump;
+    R.flow.goToPage(R.backJump);
+    R.backJump = here;
+    $('#backjump').querySelector('span').textContent = `Return to page ${here}`;
+    return;
+  }
   const idx = R.slideOf[R.backJump];
   R.backLanding = R.slides[idx][0];
   R.backJump = here;
@@ -810,6 +862,7 @@ function chapterAt(n) {
 }
 
 function updateUI(force = false) {
+  if (R.flow) return updateFlowUI();
   const N = R.N, pages = R.slides[R.cur];
   const first = pages[0], last = pages[pages.length - 1];
   const range = pages.length > 1 ? `${first}–${last}` : `${first}`;
@@ -830,8 +883,9 @@ function updateUI(force = false) {
   const marked = pages.some((n) => R.bookmarks.has(n));
   $('#bookmark-btn').classList.toggle('on', marked);
   $('#bookmark-btn').setAttribute('aria-label', marked ? 'Remove bookmark' : 'Bookmark this page');
-  $('#nav-prev').disabled = R.cur === 0;
-  $('#nav-next').disabled = R.cur === R.slides.length - 1;
+  const atStart = R.cur === 0, atEnd = R.cur === R.slides.length - 1;
+  $('#nav-prev').disabled = R.rtl ? atEnd : atStart;
+  $('#nav-next').disabled = R.rtl ? atStart : atEnd;
   if (R.tab === 'toc' && panel.classList.contains('open')) markCurrentToc();
   if (force) applyTransform();
 }
@@ -848,6 +902,10 @@ function saveSoon() {
   R.saveTimer = setTimeout(savePosition, 600);
 }
 function savePosition() {
+  if (R.flow && R.book && R.loc) {
+    Object.assign(R.book, { lastPage: R.loc.page, lastSeen: R.loc.last, lastFrac: R.loc.fraction, lastCfi: R.loc.cfi, pageCount: R.loc.total, lastOpened: Date.now() });
+    return db.put('books', R.book).catch(() => {});
+  }
   if (!R.book || !R.slides.length) return;
   const pages = R.slides[R.cur];
   R.book.lastPage = pages[0];
@@ -921,7 +979,7 @@ stage.addEventListener('pointermove', (e) => {
 
   if (g.kind === 'swipe') {
     let off = clamp(dx, -R.vw, R.vw);
-    const t = R.cur + (off < 0 ? 1 : -1);
+    const t = R.cur + (off < 0 ? 1 : -1) * S();
     if (t < 0 || t >= R.slides.length) off *= 0.28;      // nothing there: rubber-band
     g.off = off;
     setTrack(off);
@@ -933,7 +991,7 @@ stage.addEventListener('pointermove', (e) => {
       over = over > 0 ? Math.max(0, over - EDGE_SLACK) : Math.min(0, over + EDGE_SLACK);
       if (over) g.late = true;
     }
-    const t = R.cur + (over < 0 ? 1 : -1);
+    const t = R.cur + (over < 0 ? 1 : -1) * S();
     if (over && (t < 0 || t >= R.slides.length)) over *= 0.28;
     R.tx = cx; R.ty = cy; R.atRest = false;
     g.off = over;
@@ -977,7 +1035,7 @@ function releaseDrag(g) {
   }
   if (go) {
     if (g.kind === 'pan') fitTextForZoomedTurn();
-    return void settle(sgn < 0 ? 1 : -1, off);
+    return void settle((sgn < 0 ? 1 : -1) * S(), off);
   }
   settle(0, off);
   if (g.kind === 'pan') glide(vx, vy);
@@ -1046,7 +1104,7 @@ function onTap(g, e) {
   const zone = zoomed ? 0.15 : 0.22;                    // narrower when zoomed, leaving room to double-tap out
   if (settings.tapTurn && (fx < zone || fx > 1 - zone)) {
     clearTimeout(R.tapTimer); R.lastTap = null;
-    return turn(fx < 0.5 ? -1 : 1);
+    return turn((fx < 0.5 ? -1 : 1) * S());
   }
   const now = performance.now();
   if (R.lastTap && now - R.lastTap.t < 320 && Math.hypot(x - R.lastTap.x, y - R.lastTap.y) < 36) {
@@ -1071,8 +1129,12 @@ stage.addEventListener('wheel', (e) => {
     applyTransform(false);
     return hiFollow();
   }
+  wheelTurn(dx, dy);
+}, { passive: false });
+
+function wheelTurn(dx, dy) {
   const now = performance.now();
-  const d = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+  const d = Math.abs(dx) > Math.abs(dy) ? dx * (R.flow ? (R.flow.rtl ? -1 : 1) : S()) : dy;   // sideways swipes follow the screen
   if (now < R.wheelLock) { if (Math.abs(d) > 4) R.wheelLock = now + 100; return; }   // swallow trackpad inertia
   if (now - R.wheelAt > 220) R.wheelAcc = 0;
   R.wheelAt = now;
@@ -1082,7 +1144,7 @@ stage.addEventListener('wheel', (e) => {
     R.wheelAcc = 0;
     R.wheelLock = now + 380;
   }
-}, { passive: false });
+}
 
 /* ---------- keyboard ---------- */
 function panKey(dx, dy) {
@@ -1094,7 +1156,8 @@ function panKey(dx, dy) {
   scheduleHi();
   return moved;
 }
-addEventListener('keydown', (e) => {
+addEventListener('keydown', onKeyDown);
+function onKeyDown(e) {
   if (e.key === 'Escape') {
     if (!settingsSheet.hidden) { settingsSheet.hidden = true; return; }
     if (topOverlay() === 'reader' && zoomedIn()) return goRest();
@@ -1103,11 +1166,12 @@ addEventListener('keydown', (e) => {
   }
   if (!R.open || topOverlay() !== 'reader' || e.target.closest?.('input,textarea,select')) return;
   const mod = e.metaKey || e.ctrlKey;
+  if (R.flow) return flowKey(e, mod);
   const zoomed = zoomedIn();
   const step = (dx, dy, dir) => { e.preventDefault(); if (!zoomed || !panKey(dx, dy)) turn(dir); };
   switch (e.key) {
-    case 'ArrowRight': return step(-R.vw * 0.4, 0, 1);
-    case 'ArrowLeft': return step(R.vw * 0.4, 0, -1);
+    case 'ArrowRight': return step(-R.vw * 0.4, 0, S());
+    case 'ArrowLeft': return step(R.vw * 0.4, 0, -S());
     case 'ArrowDown': return step(0, -R.vh * 0.4, 1);
     case 'ArrowUp': return step(0, R.vh * 0.4, -1);
     case 'PageDown': e.preventDefault(); return turn(1);
@@ -1121,20 +1185,20 @@ addEventListener('keydown', (e) => {
     case 'f': if (mod) { e.preventDefault(); openPanel('search'); } return;
     case 'b': if (!mod) toggleBookmark(); return;
   }
-});
+}
 
-$('#nav-prev').onclick = () => turn(-1);
-$('#nav-next').onclick = () => turn(1);
+$('#nav-prev').onclick = () => turnScreen(-1);      // the arrow on the left of the screen
+$('#nav-next').onclick = () => turnScreen(1);
 
 /* ---------- scrubber & go-to-page ---------- */
 scrubber.addEventListener('input', () => {
   R.scrubbing = true;
   const n = +scrubber.value, N = R.N;
   scrubber.style.setProperty('--fill', (N > 1 ? (n - 1) / (N - 1) * 100 : 100) + '%');
-  const ch = chapterAt(n);
+  const ch = R.flow ? { title: R.flow.sectionLabelAt((n - 1) / N) } : chapterAt(n);
   const prev = $('#scrub-preview');
   prev.hidden = false;
-  prev.innerHTML = `<b>Page ${n}</b>${ch ? ' · ' + esc(ch.title) : ''}`;
+  prev.innerHTML = `<b>Page ${n}</b>${ch?.title ? ' · ' + esc(ch.title) : ''}`;
 });
 scrubber.addEventListener('change', () => {
   R.scrubbing = false;
@@ -1158,6 +1222,7 @@ function markPage(p) {
 function markAll() { for (const s of R.mounted.values()) s.pages.forEach(markPage); }
 
 async function toggleBookmark() {
+  if (R.flow) return toggleFlowBookmark();
   const pages = R.slides[R.cur];
   const marked = pages.filter((n) => R.bookmarks.has(n));
   if (marked.length) {
@@ -1258,21 +1323,21 @@ function refreshPanelIfOpen(tab) {
 function renderToc() {
   const ul = $('#toc-list');
   if (!R.outline.length) {
-    ul.innerHTML = `<li class="empty-note">This PDF doesn’t include a table of contents.<br>Use bookmarks to mark chapters yourself.</li>`;
+    ul.innerHTML = `<li class="empty-note">This ${R.flow ? 'book' : 'PDF'} doesn’t include a table of contents.<br>Use bookmarks to mark chapters yourself.</li>`;
     return;
   }
   ul.innerHTML = R.outline.map((c, i) => `
-    <li><button class="item toc-item d${Math.min(c.depth, 3)}" data-i="${i}" ${c.page ? '' : 'disabled'}>
+    <li><button class="item toc-item d${Math.min(c.depth, 3)}" data-i="${i}" ${c.page || c.href ? '' : 'disabled'}>
       <span class="grow">${esc(c.title)}</span><span class="pg">${c.page ?? ''}</span>
     </button></li>`).join('');
   markCurrentToc(true);
 }
 function markCurrentToc(scroll = false) {
-  const ch = chapterAt(firstPage());
+  const ch = R.flow ? null : chapterAt(firstPage());
   let cur = null;
   for (const b of $$('#toc-list .toc-item')) {
     const c = R.outline[+b.dataset.i];
-    const on = ch && c.title === ch.title && c.page === ch.page;
+    const on = R.flow ? !!c.href && c.href === R.loc?.chapterHref : ch && c.title === ch.title && c.page === ch.page;
     b.classList.toggle('current', !!on);
     if (on) cur = b;
   }
@@ -1282,36 +1347,41 @@ $('#toc-list').addEventListener('click', (e) => {
   const b = e.target.closest('.toc-item');
   if (!b) return;
   const c = R.outline[+b.dataset.i];
-  if (c?.page) { goToPage(c.page); closePanelIfNarrow(); }
+  if (R.flow && c?.href) { setBackJump(); R.backLanding = null; R.flow.goTo(c.href).then(() => { R.backLanding = firstPage(); }); closePanelIfNarrow(); }
+  else if (c?.page) { goToPage(c.page); closePanelIfNarrow(); }
 });
 
 function renderBookmarks() {
   const ul = $('#bm-list');
   const list = [...R.bookmarks.values()].sort((a, b) => a.page - b.page);
+  const key = (b) => (R.flow ? b.id : b.page);
   if (!list.length) {
     ul.innerHTML = `<li class="empty-note">No bookmarks yet.<br>Tap the ribbon at the top to bookmark the page you’re on.</li>`;
     return;
   }
   ul.innerHTML = list.map((b) => `
-    <li><button class="item bm-item" data-page="${b.page}">
+    <li><button class="item bm-item" data-key="${esc(key(b))}">
       <span class="grow"><div class="title">${esc(b.title || chapterAt(b.page)?.title || 'Page ' + b.page)}</div>
       <div class="sub">Page ${b.page} · ${relTime(b.createdAt)}</div></span>
-    </button><button class="icon-btn small del" data-del="${b.page}" aria-label="Delete bookmark">${icon('x')}</button></li>`).join('');
+    </button><button class="icon-btn small del" data-del="${esc(key(b))}" aria-label="Delete bookmark">${icon('x')}</button></li>`).join('');
 }
 $('#bm-list').addEventListener('click', async (e) => {
   const del = e.target.closest('[data-del]');
   if (del) {
-    const page = +del.dataset.del;
-    const bm = R.bookmarks.get(page);
+    const k = R.flow ? del.dataset.del : +del.dataset.del;
+    const bm = R.bookmarks.get(k);
     await db.del('bookmarks', bm.id);
-    R.bookmarks.delete(page);
+    R.bookmarks.delete(k);
     markAll();
     updateUI();
     renderBookmarks();
     return;
   }
   const b = e.target.closest('.bm-item');
-  if (b) { goToPage(+b.dataset.page); closePanelIfNarrow(); }
+  if (!b) return;
+  if (R.flow) { const bm = R.bookmarks.get(b.dataset.key); setBackJump(); R.backLanding = bm.page; R.flow.goTo(bm.cfi); }
+  else goToPage(+b.dataset.key);
+  closePanelIfNarrow();
 });
 
 /* ---------- search ---------- */
@@ -1342,6 +1412,7 @@ async function runSearch(q) {
   const status = $('#search-status');
   ul.innerHTML = '';
   if (q.length < 2) { status.textContent = q ? 'Type at least 2 characters' : ''; return; }
+  if (R.flow) return runFlowSearch(q, token);
   const ql = q.toLowerCase();
   const N = R.N;
   let count = 0;
@@ -1371,6 +1442,7 @@ async function runSearch(q) {
 $('#search-list').addEventListener('click', async (e) => {
   const b = e.target.closest('.search-item');
   if (!b) return;
+  if (b.dataset.cfi) { setBackJump(); R.backLanding = null; R.flow?.goTo(b.dataset.cfi).then(() => { R.backLanding = firstPage(); }); closePanelIfNarrow(); return; }
   const n = +b.dataset.page, k = +b.dataset.k;
   const q = $('#search-input').value.trim();
   goToPage(n);
@@ -1429,11 +1501,22 @@ function syncSettingsSheet() {
   $('#opt-awake').checked = settings.keepAwake;
   $('#opt-autohide').checked = settings.autoHide;
   for (const b of $('#layout-seg').children) b.classList.toggle('active', b.dataset.layout === settings.layout);
+  $('#text-size-label').textContent = `${settings.textSize}%`;
+  for (const b of $('#dir-seg').children) b.classList.toggle('active', b.dataset.dir === (R.book?.dir || 'auto'));
+  const font = FONT_CHOICES.some((f) => f.key === settings.textFont) ? settings.textFont : 'book';
+  for (const b of $('#font-seg').children) {
+    b.classList.toggle('active', b.dataset.font === font);
+    b.setAttribute('aria-pressed', String(b.dataset.font === font));
+  }
+  for (const b of $('#spacing-seg').children) b.classList.toggle('active', +b.dataset.spacing === settings.lineSpacing);
 }
 $('#settings-btn').onclick = () => {
   const open = settingsSheet.hidden;
   settingsSheet.hidden = !open;
-  if (open) syncSettingsSheet();
+  if (open) {
+    syncSettingsSheet();
+    if (R.flow && !R.flow.fixed) loadFontPreviews();
+  }
 };
 for (const seg of [$('#theme-seg'), $('#lib-theme-seg')]) {
   seg.addEventListener('click', (e) => {
@@ -1447,7 +1530,8 @@ $('#layout-seg').addEventListener('click', (e) => {
   if (!b) return;
   settings.layout = b.dataset.layout; saveSettings();
   syncSettingsSheet();
-  relayoutAll();
+  if (R.flow) R.flow.applyStyles();
+  else relayoutAll();
 });
 $('#opt-invert').onchange = (e) => { settings.invert = e.target.checked; saveSettings(); applyTheme(); };
 $('#opt-tapturn').onchange = (e) => { settings.tapTurn = e.target.checked; saveSettings(); if (settings.tapTurn) toast('Tap the left or right edge of the screen to turn pages'); };
@@ -1463,6 +1547,239 @@ async function requestWake() {
   } catch {}
 }
 function releaseWake() { R.wake?.release().catch(() => {}); R.wake = null; }
+
+/* ================================================================
+   Text reader (EPUB, Kindle, Word, text…): the glue between flow.js and the bars above
+   ================================================================ */
+async function openFlowBook(book, buf, gen) {
+  let ctl;
+  try {
+    ctl = await openFlow({
+      data: buf, format: book.format, fileName: book.fileName, container: flowStage, start: book.lastCfi || null, dir: book.dir || null,
+      hooks: {
+        onRelocate: (loc) => { if (gen === R.gen) onFlowMove(loc); },
+        onTap: (pt) => { if (gen === R.gen) onFlowTap(pt); },
+        onKey: (e) => onKeyDown(e),
+        onWheel: (e) => { if (gen !== R.gen) return; e.preventDefault(); R.lastActivity = Date.now(); wheelTurn(e.deltaX, e.deltaY); },
+      },
+    });
+  } catch (e) {
+    console.error(e);
+    if (gen !== R.gen) return;
+    $('#loading').hidden = true;
+    toast('Couldn’t open this book');
+    closeTop();
+    return;
+  }
+  if (gen !== R.gen) { ctl.destroy(); return; }
+  R.flow = ctl;
+  R.N = ctl.total;
+  R.rtl = ctl.rtl;
+  applyDirUI();
+  readerEl.classList.toggle('fixed', ctl.fixed);
+  scrubber.max = R.N;
+  for (const b of await db.byBook('bookmarks', book.id)) if (b.cfi) R.bookmarks.set(b.id, b);
+  if (gen !== R.gen) return;
+  R.outline = ctl.toc;
+  updateFlowUI();
+  refreshPanelIfOpen('toc');
+  $('#loading').hidden = true;
+
+  book.lastOpened = Date.now();
+  db.put('books', book);
+  if (book.lastCfi && R.loc?.page > 1) toast(`Picked up where you left off · page ${R.loc.page}`);
+  R.flowReady = true;
+  emit('open');
+
+  clearInterval(R.readTimer);
+  R.readTimer = setInterval(() => {
+    if (document.visibilityState === 'visible' && Date.now() - R.lastActivity < 120000 && R.book) {
+      R.book.readSeconds = (R.book.readSeconds || 0) + 15;
+      saveSoon();
+    }
+  }, 15000);
+  requestWake();
+}
+
+function onFlowMove(loc) {
+  const moved = R.loc && R.loc.page !== loc.page;
+  R.loc = loc;
+  R.N = loc.total;
+  if (!R.flowReady) return;
+  R.lastActivity = Date.now();
+  updateFlowUI();
+  saveSoon();
+  if (R.backJump != null && R.backLanding != null && Math.abs(loc.page - R.backLanding) > 2) { R.backJump = null; $('#backjump').hidden = true; }
+  if (moved) {
+    emit('turn');
+    if (settings.autoHide && !R.chromeHidden && !panel.classList.contains('open')) setChrome(false);
+  }
+}
+
+function updateFlowUI() {
+  const L = R.loc;
+  if (!L) return;
+  $('#page-label').textContent = `Page ${L.page} of ${L.total}`;
+  $('#mini-status').textContent = `${L.page} / ${L.total}`;
+  if (!R.scrubbing) {
+    scrubber.value = L.page;
+    scrubber.style.setProperty('--fill', (L.total > 1 ? (L.page - 1) / (L.total - 1) * 100 : 100) + '%');
+  }
+  $('#chapter-title').textContent = L.chapter;
+  const m = L.minutesLeftInChapter;
+  const left = L.chapter && m != null ? (m < 1 ? 'Last page in chapter' : `${m} min left in chapter`)
+    : L.total - L.last === 0 ? 'Last page' : `${L.total - L.last} pages left`;
+  $('#progress-label').textContent = `${Math.round(L.fraction * 100)}% · ${left}`;
+  const marked = [...R.bookmarks.values()].some((b) => R.flow.isVisible(b.cfi));
+  $('#bookmark-btn').classList.toggle('on', marked);
+  $('#bookmark-btn').setAttribute('aria-label', marked ? 'Remove bookmark' : 'Bookmark this page');
+  flowStage.classList.toggle('marked', marked);
+  $('#nav-prev').disabled = false;
+  $('#nav-next').disabled = false;
+  if (R.tab === 'toc' && panel.classList.contains('open')) markCurrentToc();
+}
+
+function onFlowTap({ x }) {
+  if (!settingsSheet.hidden) { settingsSheet.hidden = true; return; }
+  R.lastActivity = Date.now();
+  const fx = x / innerWidth;
+  if (settings.tapTurn && (fx < 0.22 || fx > 0.78)) return turnScreen(fx < 0.5 ? -1 : 1);
+  setChrome(R.chromeHidden);
+  emit('bars', { shown: !R.chromeHidden });
+}
+
+function flowKey(e, mod) {
+  const go = (fn) => { e.preventDefault(); R.lastActivity = Date.now(); fn(); };
+  switch (e.key) {
+    case 'ArrowRight': return go(() => R.flow.goRight());
+    case 'ArrowLeft': return go(() => R.flow.goLeft());
+    case 'ArrowDown': case 'PageDown': return go(() => R.flow.next());
+    case 'ArrowUp': case 'PageUp': return go(() => R.flow.prev());
+    case ' ': return go(() => (e.shiftKey ? R.flow.prev() : R.flow.next()));
+    case 'Home': return go(() => goToPage(1));
+    case 'End': return go(() => goToPage(R.N));
+    case '=': case '+': if (mod) go(() => setTextSize(settings.textSize + 10)); return;
+    case '-': if (mod) go(() => setTextSize(settings.textSize - 10)); return;
+    case '0': if (mod) go(() => setTextSize(100)); return;
+    case 'f': if (mod) go(() => openPanel('search')); return;
+    case 'b': if (!mod) toggleBookmark(); return;
+  }
+}
+
+async function toggleFlowBookmark() {
+  const L = R.loc;
+  if (!L) return;
+  const shown = [...R.bookmarks.values()].filter((b) => R.flow.isVisible(b.cfi));
+  if (shown.length) {
+    for (const b of shown) { await db.del('bookmarks', b.id); R.bookmarks.delete(b.id); }
+    toast(`Bookmark removed from page ${shown[0].page}`);
+  } else {
+    const bm = { id: uid(), bookId: R.book.id, page: L.page, cfi: L.cfi, title: L.chapter, createdAt: Date.now() };
+    await db.put('bookmarks', bm);
+    R.bookmarks.set(bm.id, bm);
+    toast(`Bookmarked page ${L.page}`);
+  }
+  updateFlowUI();
+  refreshPanelIfOpen('bookmarks');
+  emit('bookmark');
+}
+
+async function runFlowSearch(q, token) {
+  const ul = $('#search-list'), status = $('#search-status');
+  const gen = R.gen;
+  let count = 0;
+  status.textContent = 'Searching…';
+  try {
+    for await (const r of R.flow.search(q)) {
+      if (token !== R.searchToken || gen !== R.gen) return;
+      if (r.progress != null) { status.textContent = `Searching… ${Math.round(r.progress * 100)}% · ${count} found`; continue; }
+      if (count >= 500) continue;
+      const { pre = '', match = '', post = '' } = r.excerpt || {};
+      ul.insertAdjacentHTML('beforeend', `<li><button class="item search-item" data-cfi="${esc(r.cfi)}">
+        <span class="grow snip">…${esc(pre)}<mark>${esc(match)}</mark>${esc(post)}…</span>
+        <span class="pg">${esc(r.chapter.length > 18 ? r.chapter.slice(0, 17) + '…' : r.chapter)}</span></button></li>`);
+      count++;
+    }
+  } catch (e) { console.warn(e); }
+  if (token !== R.searchToken || gen !== R.gen) return;
+  status.textContent = count ? `${count}${count >= 500 ? '+' : ''} result${count === 1 ? '' : 's'} for “${q}”` : `No results for “${q}”`;
+}
+
+function setTextSize(v) {
+  settings.textSize = clamp(Math.round(v / 10) * 10, 60, 250);
+  saveSettings();
+  syncSettingsSheet();
+  R.flow?.applyStyles();
+}
+$('#text-smaller').onclick = () => setTextSize(settings.textSize - 10);
+$('#text-bigger').onclick = () => setTextSize(settings.textSize + 10);
+// The font picker: each name is shown in its own font.
+$('#font-seg').innerHTML = FONT_CHOICES.map((f) => {
+  const stack = fontStack(f.key);
+  return `<button data-font="${f.key}" aria-pressed="false"><span class="f-name"${stack ? ` style='font-family: ${stack}'` : ''}>${esc(f.label)}</span><small>${esc(f.note)}</small></button>`;
+}).join('');
+$('#font-seg').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  settings.textFont = b.dataset.font; saveSettings(); syncSettingsSheet(); R.flow?.applyStyles();
+});
+$('#spacing-seg').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  settings.lineSpacing = +b.dataset.spacing; saveSettings(); syncSettingsSheet(); R.flow?.applyStyles();
+});
+/* ---------- reading direction ---------- */
+const RTL_CHARS = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/g;      // Hebrew, Arabic, Syriac, Thaana, N'Ko…
+/** Does this PDF read right to left? Its own viewer setting says so, or its first pages are mostly RTL script. */
+async function pdfLooksRtl(gen) {
+  try {
+    if ((await R.pdf.getViewerPreferences())?.Direction === 'R2L') return true;
+    let text = '';
+    for (let n = 1; n <= Math.min(R.N, 6) && text.length < 4000; n++) text += await pageText(n);
+    if (gen !== R.gen) return false;
+    const letters = (text.match(/\p{L}/gu) || []).length;
+    return letters > 40 && (text.match(RTL_CHARS) || []).length / letters > 0.3;
+  } catch { return false; }
+}
+function applyDirUI() {
+  readerEl.classList.toggle('rtl', R.rtl);
+  scrubber.dir = R.rtl ? 'rtl' : 'ltr';                  // the slider fills from the right, like the book
+}
+$('#dir-seg').addEventListener('click', async (e) => {
+  const b = e.target.closest('button');
+  if (!b || !R.open || !R.book) return;
+  const dir = b.dataset.dir === 'auto' ? undefined : b.dataset.dir;
+  if (dir === R.book.dir) return;
+  R.book.dir = dir;
+  if (!dir) delete R.book.dir;
+  await savePosition();
+  await db.put('books', R.book);
+  syncSettingsSheet();
+  const gen = R.gen;
+  if (R.flow) {
+    // foliate lays a book out for one direction when it opens it, so reopen it at the same place.
+    R.flowReady = false;
+    R.flow.destroy();
+    R.flow = null;
+    flowStage.replaceChildren();
+    $('#loading').hidden = false;
+    R.bookmarks.clear();
+    await openFlowBook(R.book, R.buf, gen);
+  } else {
+    R.rtl = dir ? dir === 'rtl' : await pdfLooksRtl(gen);
+    if (gen !== R.gen) return;
+    applyDirUI();
+    resetZoom();
+    for (const s of [...R.mounted.values()]) unmountSlide(s);
+    ensureWindow();
+    updateUI(true);
+    ensureText(curSlide());
+  }
+  toast(R.rtl ? 'Reading right to left' : 'Reading left to right');
+});
+
+// Restyle the book's pages whenever the theme changes (including Auto following the system).
+new MutationObserver(() => R.flow?.applyStyles()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
 // Handy for debugging and automated tests.
 window.__folio_reader = { get R() { return R; }, turn, goToPage, zoomTo };

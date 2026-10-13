@@ -251,6 +251,15 @@ h1, h2, h3, h4 { margin: 0; }
 
 /* ===================== Reader ===================== */
 #reader { background: var(--viewer-bg); overflow: hidden; }
+/* Text reader (flow.js): the book fills the screen like a page; foliate lays out the columns */
+.flow-stage { position: absolute; inset: 0; padding: var(--sat) var(--sar) var(--sab) var(--sal); background: var(--page-bg); }
+#reader.fixed .flow-stage { background: var(--viewer-bg); padding-top: calc(var(--sat) + 8px); }
+.flow-stage foliate-view { display: block; width: 100%; height: 100%; }
+.flow-stage.marked::after { content: ""; position: absolute; top: var(--sat); right: calc(var(--sar) + 6%); width: 22px; height: 38px; z-index: 3; pointer-events: none;
+  background: var(--accent); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%); }
+#reader.flow .pdf-only, #reader:not(.flow) .flow-only, #reader.fixed .flow-only, #reader.flow:not(.fixed) .font-note { display: none; }
+#dialog-msg { white-space: pre-line; }
+#text-size-label { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; }
 .stage {
   position: absolute; inset: 0; overflow: hidden; outline: none; touch-action: none;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
@@ -350,6 +359,7 @@ h1, h2, h3, h4 { margin: 0; }
 
 input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; margin: 0; }
 input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%)); }
+input[type=range][dir=rtl]::-webkit-slider-runnable-track { background: linear-gradient(to left, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%)); }
 input[type=range]::-moz-range-track { height: 4px; border-radius: 4px; background: var(--line); }
 input[type=range]::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--accent); }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 4px rgb(0 0 0 / .25); }
@@ -406,9 +416,15 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 
 
 /* Sheets & modals */
 .sheet { position: fixed; z-index: 25; left: 50%; transform: translateX(-50%); bottom: calc(var(--sab) + 104px); width: min(460px, calc(100vw - 24px)); animation: rise .22s var(--ease); }
-.sheet-inner { background: var(--surface); border-radius: 20px; box-shadow: var(--shadow-lg); padding: 6px 16px; border: 1px solid var(--line); }
+.sheet-inner { background: var(--surface); border-radius: 20px; box-shadow: var(--shadow-lg); padding: 6px 16px; border: 1px solid var(--line); max-height: calc(100dvh - var(--sab) - 104px - 72px - var(--sat)); overflow-y: auto; overscroll-behavior: contain; }
 .sheet-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .sheet-row:last-child { border-bottom: 0; }
+.sheet-row.stack { flex-direction: column; align-items: stretch; gap: 8px; }
+.font-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.font-grid button { text-align: start; padding: 7px 10px 8px; border-radius: 10px; background: var(--surface-2); border: 2px solid transparent; min-width: 0; }
+.font-grid button.active { border-color: var(--accent); background: var(--surface); }
+.font-grid .f-name { display: block; font-size: 15.5px; line-height: 1.25; color: var(--text); overflow-wrap: anywhere; }
+.font-grid small { display: block; font-size: 12px; line-height: 1.3; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sheet-row .label { font-size: 15px; }
 .sheet-row .label small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
 .segmented { display: flex; background: var(--surface-2); padding: 3px; border-radius: 10px; flex: none; }
@@ -563,3 +579,32 @@ body.touring #book-grid .more { pointer-events: none; }     /* only the cover op
 @keyframes tour-tap { 0%, 30%, 100% { scale: 1; } 12% { scale: .78; } }
 @keyframes tour-ripple { 0% { opacity: .8; scale: 1; } 40%, 100% { opacity: 0; scale: 1.9; } }
 @keyframes tour-edge { 0%, 100% { scale: 1; } 50% { scale: 1.12; } }
+
+/* Free classics */
+.store-card { width: min(720px, 100%); max-height: min(92vh, 900px); }
+.store-intro { margin: 0 0 12px; line-height: 1.45; }
+.store-shelves { margin-top: 14px; min-height: 120px; }
+.store-shelf { margin-bottom: 18px; }
+.store-shelf h4 { font-family: var(--serif); font-size: 18px; margin-bottom: 8px; }
+.store-row {
+  display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+  margin: 0 -20px; padding: 4px 20px 8px; scroll-padding: 0 20px;
+}
+.store-row::-webkit-scrollbar { display: none; }
+.store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 14px; }
+.store-item { flex: none; width: 104px; text-align: left; scroll-snap-align: start; display: flex; flex-direction: column; align-self: flex-start; }
+.store-grid .store-item { width: auto; }
+.store-item .cover { width: 100%; }
+.store-title { display: block; margin-top: 7px; font-weight: 600; font-size: 13.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.store-author { display: flex; align-items: center; gap: 3px; font-size: 12.5px; color: var(--muted); margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.store-author svg { width: 14px; height: 14px; flex: none; color: var(--accent); }
+.store-msg { text-align: center; padding: 28px 8px; line-height: 1.5; }
+.store-more { border-bottom: 0; border-top: 1px solid var(--line); }
+.store-book-top { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 12px; }
+.store-book-top .cover { width: 96px; flex: none; }
+.store-book-top h3 { margin: 2px 0 4px; }
+.store-book-top p { margin: 0 0 4px; }
+#store-book-blurb { line-height: 1.5; margin: 0; }
+#store-book-blurb:empty { display: none; }
+#store-book { z-index: 61; }
+.empty .btn + .btn { margin-top: 10px; }

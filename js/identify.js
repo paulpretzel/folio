@@ -41,8 +41,10 @@ export function cleanTitle(t) {
   return t;
 }
 
+const BOOK_EXT = /\.(pdf|epub|kepub|mobi|azw3?|kf8|prc|fb2|fbz|cbz|docx|txt|text|md|markdown|html?|xhtml)$/i;
+
 export function titleFromFileName(name) {
-  let t = String(name || '').replace(/\.pdf$/i, '');
+  let t = String(name || '').replace(BOOK_EXT, '');
   try { t = decodeURIComponent(t); } catch {}
   t = t
     .replace(/\((?:z-?library|libgen|1lib)[^)]*\)|\[(?:z-?lib|libgen)[^\]]*\]/gi, '')
@@ -52,7 +54,7 @@ export function titleFromFileName(name) {
     .replace(/\s+/g, ' ').trim();
   if (!/\s/.test(t) && t.includes('-')) t = t.replace(/-+/g, ' ');
   if (t && t === t.toLowerCase() && /\s/.test(t)) t = titleCase(t);
-  return t || String(name || '').replace(/\.pdf$/i, '') || 'Untitled';
+  return t || String(name || '').replace(BOOK_EXT, '') || 'Untitled';
 }
 
 function cleanAuthor(a) {

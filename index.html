@@ -3,8 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <!-- Books are shown in frames on this origin; this stops any script inside an EPUB or web page from running. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' blob: data:; font-src 'self' blob: data:; media-src 'self' blob: data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'">
   <title>Folio</title>
-  <meta name="description" content="A private, offline PDF book reader. Turn pages sideways, keep your books in albums.">
+  <meta name="description" content="A private, offline book reader for PDF, EPUB, Kindle and Word files. Turn pages sideways, keep your books in albums.">
   <meta name="theme-color" content="#f6f3ee" id="theme-color">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -32,6 +34,7 @@
       <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
       <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14M18 22V8a2 2 0 0 0-2-2H2"/></symbol>
       <symbol id="i-fit" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+      <symbol id="i-library" viewBox="0 0 24 24"><path d="M4 4h4v16H4zM10 4h4v16h-4zM15.5 5.3l3.8-1 4 15.5-3.8 1z"/></symbol>
       <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></symbol>
       <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
       <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></symbol>
@@ -57,6 +60,7 @@
         </div>
         <div class="lib-actions">
           <button class="icon-btn" id="album-menu-btn" aria-label="Album options" hidden><svg><use href="#i-more"/></svg></button>
+          <button class="icon-btn" id="store-btn" aria-label="Free classics" title="Free classics"><svg><use href="#i-library"/></svg></button>
           <button class="icon-btn" id="lib-settings-btn" aria-label="Settings"><svg><use href="#i-sliders"/></svg></button>
           <button class="btn primary" id="add-book-btn"><svg><use href="#i-plus"/></svg><span>Add book</span></button>
         </div>
@@ -89,8 +93,9 @@
       <div id="empty" class="empty" hidden>
         <div class="empty-art"><svg><use href="#i-book"/></svg></div>
         <h2>Your shelf is empty</h2>
-        <p class="muted">Add a PDF from your Files app, Drive, or downloads. Folio reads what each one is and helps you keep them in albums. Everything stays on this device and works offline.</p>
-        <button class="btn primary big" id="empty-add-btn"><svg><use href="#i-upload"/></svg><span>Add a PDF</span></button>
+        <p class="muted">Add a book from your Files app, Drive, or downloads: PDF, EPUB, Kindle, Word and text files all work. Folio reads what each one is and helps you keep them in albums. Everything stays on this device and works offline.</p>
+        <button class="btn primary big" id="empty-add-btn"><svg><use href="#i-upload"/></svg><span>Add a book</span></button>
+        <button class="btn big ghost" id="empty-store-btn"><svg><use href="#i-library"/></svg><span>Get a free classic</span></button>
       </div>
     </div>
 
@@ -101,7 +106,7 @@
       <button class="btn danger-soft" id="sel-remove" data-needs-pick><svg><use href="#i-trash"/></svg><span>Remove</span></button>
     </div>
 
-    <input type="file" id="file-input" accept="application/pdf,.pdf" multiple hidden>
+    <input type="file" id="file-input" multiple hidden>
     <input type="file" id="restore-input" accept="application/json,.json" hidden>
   </section>
 
@@ -116,7 +121,7 @@
       <div class="topbar-actions">
         <button class="icon-btn" id="search-btn" aria-label="Search in book"><svg><use href="#i-search"/></svg></button>
         <button class="icon-btn" id="panel-btn" aria-label="Contents and bookmarks"><svg><use href="#i-list"/></svg></button>
-        <button class="icon-btn fit-btn" id="fittext-btn" aria-label="Fit text to the screen" aria-pressed="false"><svg><use href="#i-crop"/></svg></button>
+        <button class="icon-btn fit-btn pdf-only" id="fittext-btn" aria-label="Fit text to the screen" aria-pressed="false"><svg><use href="#i-crop"/></svg></button>
         <button class="icon-btn" id="settings-btn" aria-label="Display settings"><svg><use href="#i-type"/></svg></button>
         <button class="icon-btn bm-btn" id="bookmark-btn" aria-label="Bookmark this page"><svg><use href="#i-bookmark"/></svg></button>
       </div>
@@ -125,6 +130,7 @@
     <main id="stage" class="stage" tabindex="-1" aria-label="Book pages">
       <div id="track" class="track"></div>
     </main>
+    <main id="flow-stage" class="flow-stage" aria-label="Book pages" hidden></main>
 
     <button class="edge-nav prev" id="nav-prev" aria-label="Previous page"><svg><use href="#i-back"/></svg></button>
     <button class="edge-nav next" id="nav-next" aria-label="Next page"><svg><use href="#i-next"/></svg></button>
@@ -189,6 +195,37 @@
           </div>
         </div>
         <div class="sheet-row">
+          <span class="label">Direction</span>
+          <div class="segmented" id="dir-seg">
+            <button data-dir="auto">Auto</button>
+            <button data-dir="ltr">Left to right</button>
+            <button data-dir="rtl">Right to left</button>
+          </div>
+        </div>
+        <div class="sheet-row flow-only">
+          <span class="label">Text size</span>
+          <div class="zoom-ctl">
+            <button class="icon-btn" id="text-smaller" aria-label="Smaller text"><svg><use href="#i-minus"/></svg></button>
+            <span id="text-size-label">100%</span>
+            <button class="icon-btn" id="text-bigger" aria-label="Bigger text"><svg><use href="#i-plus"/></svg></button>
+          </div>
+        </div>
+        <div class="sheet-row stack flow-only">
+          <span class="label">Font</span>
+          <div class="font-grid" id="font-seg"></div>
+        </div>
+        <div class="sheet-row font-note">
+          <span class="label">Font<small>This book’s pages have their fonts built in. You can change the font in EPUB, Kindle, Word and text books.</small></span>
+        </div>
+        <div class="sheet-row flow-only">
+          <span class="label">Line spacing</span>
+          <div class="segmented" id="spacing-seg">
+            <button data-spacing="1.3">Tight</button>
+            <button data-spacing="1.5">Normal</button>
+            <button data-spacing="1.8">Loose</button>
+          </div>
+        </div>
+        <div class="sheet-row pdf-only">
           <span class="label">Zoom</span>
           <div class="zoom-ctl">
             <button class="icon-btn" id="zoom-out" aria-label="Zoom out"><svg><use href="#i-minus"/></svg></button>
@@ -197,8 +234,8 @@
             <button class="btn ghost small" id="zoom-fit"><svg><use href="#i-fit"/></svg><span>Fit</span></button>
           </div>
         </div>
-        <label class="sheet-row toggle"><span class="label">Fit text to the screen<small>Trims the blank margins so the words are bigger. Turning a page while zoomed in switches this on.</small></span><input type="checkbox" id="opt-fittext"><span class="switch"></span></label>
-        <label class="sheet-row toggle"><span class="label">Dark pages in dark theme</span><input type="checkbox" id="opt-invert"><span class="switch"></span></label>
+        <label class="sheet-row toggle pdf-only"><span class="label">Fit text to the screen<small>Trims the blank margins so the words are bigger. Turning a page while zoomed in switches this on.</small></span><input type="checkbox" id="opt-fittext"><span class="switch"></span></label>
+        <label class="sheet-row toggle pdf-only"><span class="label">Dark pages in dark theme</span><input type="checkbox" id="opt-invert"><span class="switch"></span></label>
         <label class="sheet-row toggle"><span class="label">Tap left / right edge to turn page</span><input type="checkbox" id="opt-tapturn"><span class="switch"></span></label>
         <label class="sheet-row toggle"><span class="label">Hide bars when turning pages</span><input type="checkbox" id="opt-autohide"><span class="switch"></span></label>
         <label class="sheet-row toggle"><span class="label">Keep screen on while reading</span><input type="checkbox" id="opt-awake"><span class="switch"></span></label>
@@ -255,7 +292,7 @@
       </div>
       <div class="sheet-section">
         <h4>Backup</h4>
-        <p class="muted small">Saves your albums, bookmarks and reading positions (not the PDFs) to a small file. Restore it on any device; everything attaches to the same PDF when you add it there.</p>
+        <p class="muted small">Saves your albums, bookmarks and reading positions (not the books themselves) to a small file. Restore it on any device; everything attaches to the same book when you add it there.</p>
         <div class="btn-row">
           <button class="btn" id="backup-btn"><svg><use href="#i-download"/></svg><span>Back up</span></button>
           <button class="btn" id="restore-btn"><svg><use href="#i-upload"/></svg><span>Restore</span></button>
@@ -266,10 +303,47 @@
         <h4>About</h4>
         <p class="muted small">Folio<span id="about-build" hidden></span>. Its code is public, so anyone can check what it does.</p>
         <p class="muted small">Made with <a href="https://mozilla.github.io/pdf.js/" target="_blank" rel="noopener">pdf.js</a> by Mozilla (Apache License 2.0). The guide book uses Source Serif 4 by Adobe (SIL Open Font License).</p>
+        <p class="muted small">EPUB, Kindle and comic books open with <a href="https://github.com/johnfactotum/foliate-js" target="_blank" rel="noopener">foliate-js</a> by John Factotum (MIT License), and Word files with <a href="https://github.com/mwilliamson/mammoth.js" target="_blank" rel="noopener">mammoth.js</a> by Michael Williamson (BSD 2-Clause License).</p>
+        <p class="muted small">Reading fonts: Arimo, Comic Neue, Lexend, Atkinson Hyperlegible (Braille Institute) and OpenDyslexic, under the <a href="https://openfontlicense.org" target="_blank" rel="noopener">SIL Open Font License 1.1</a>, and DejaVu Sans, under the Bitstream Vera licence. Their licence files are in the app’s <a href="https://github.com/paulpretzel/folio/tree/main/vendor/fonts" target="_blank" rel="noopener">vendor/fonts</a> folder.</p>
         <div class="btn-row">
           <a class="btn small" href="https://github.com/paulpretzel/folio/blob/main/PRIVACY.md" target="_blank" rel="noopener">Privacy policy</a>
           <a class="btn small" href="https://github.com/paulpretzel/folio" target="_blank" rel="noopener">Source code</a>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="store" class="modal" hidden>
+    <div class="modal-card store-card" role="dialog" aria-labelledby="store-heading">
+      <div class="modal-head"><h3 id="store-heading">Free classics</h3><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+      <p class="muted small store-intro">Great books that are free for everyone, to download and keep. Tap a book to read about it.</p>
+      <div class="search-field"><svg><use href="#i-search"/></svg><input id="store-search" type="search" placeholder="Search the classics" autocomplete="off" aria-label="Search the classics"></div>
+      <div id="store-shelves" class="store-shelves"></div>
+      <div class="sheet-section store-more">
+        <h4>More free books</h4>
+        <p class="muted small">These open in your browser. Download an EPUB there, then add it with <b>Add book</b>.</p>
+        <div class="btn-row">
+          <a class="btn small" href="https://www.gutenberg.org" target="_blank" rel="noopener">Project Gutenberg</a>
+          <a class="btn small" href="https://standardebooks.org" target="_blank" rel="noopener">Standard Ebooks</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="store-book" class="modal" hidden>
+    <div class="modal-card store-book-card" role="dialog" aria-labelledby="store-book-title">
+      <div class="store-book-top">
+        <div class="cover" id="store-book-cover"></div>
+        <div>
+          <h3 id="store-book-title"></h3>
+          <p id="store-book-author" class="muted"></p>
+          <p id="store-book-meta" class="muted small"></p>
+        </div>
+      </div>
+      <p id="store-book-blurb"></p>
+      <div class="btn-row end">
+        <button class="btn" data-close>Close</button>
+        <button class="btn primary" id="store-get"><svg><use href="#i-download"/></svg><span>Get</span></button>
       </div>
     </div>
   </div>

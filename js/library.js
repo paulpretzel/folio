@@ -1,9 +1,10 @@
-/* Library: books, albums, importing + identifying PDFs, backup & restore. */
+/* Library: books, albums, importing + identifying books, backup & restore. */
 import { db } from './db.js';
 import { openPdf } from './pdf.js';
 import { identify, titleFromFileName, KINDS } from './identify.js';
+import { sniff, openEbookFile, ebookInfo, pageCountOf, fileId, coverFromBlob, FormatError, FORMAT_LABELS } from './formats.js';
 import {
-  $, $$, esc, icon, uid, ls, relTime, fmtDuration, plural, toast, busy,
+  $, $$, esc, icon, uid, ls, relTime, fmtDuration, plural, toast, busy, infoDialog,
   pushOverlay, closeTop, openModal, promptDialog, confirmDialog, actionSheet, shareOrDownload,
 } from './ui.js';
 import { settings, saveSettings } from './settings.js';
@@ -349,34 +350,79 @@ async function makeCover(pdf) {
   } catch { return null; }
 }
 
+/* A PDF: identified from its text (identify.js). Returns null if it's already in the library. */
+async function addPdf(f, buf, step) {
+  const pdf = await openPdf(new Uint8Array(buf.slice(0)));
+  try {
+    const id = pdf.fingerprints[0];
+    if (await db.get('books', id)) return null;
+    const meta = await pdf.getMetadata().catch(() => null);
+    step('Identifying');
+    const ident = await identify(pdf, { fileName: f.name, info: meta?.info || {} }).catch((e) => { console.warn(e); return null; });
+    const cover = await makeCover(pdf);
+    await db.put('files', buf, id);
+    return {
+      id, format: 'pdf', title: ident?.title || titleFromFileName(f.name), author: ident?.author || '',
+      fileName: f.name, size: f.size, pageCount: pdf.numPages,
+      addedAt: Date.now(), lastOpened: 0, lastPage: 1, lastSeen: 1, lastFrac: 0, readSeconds: 0, cover,
+      ident: ident && { kind: ident.kind, kindLabel: ident.kindLabel, confidence: ident.confidence, albumName: ident.albumName, isbn: ident.isbn, year: ident.year, scanned: ident.scanned },
+    };
+  } finally { pdf.destroy(); }
+}
+
+/* Any other format: EPUB and Kindle files carry their own title, author and cover. */
+async function addEbook(f, buf, format, step) {
+  const id = await fileId(buf);
+  if (await db.get('books', id)) return null;
+  step('Reading');
+  const book = await openEbookFile(new Blob([buf]), format, f.name);
+  try {
+    const info = ebookInfo(book);
+    const cover = await coverFromBlob(await Promise.resolve(book.getCover?.()).catch(() => null));
+    const comic = format === 'cbz' || book.rendition?.layout === 'pre-paginated';
+    const kind = comic ? 'comic' : /fiction|novel|stories/.test(info.subjects) ? 'fiction' : ['docx', 'txt', 'md', 'html'].includes(format) ? 'document' : 'book';
+    const fromName = titleFromFileName(f.name);
+    const title = info.title && !/^book\.\w+$/i.test(info.title) ? info.title : fromName;
+    await db.put('files', buf, id);
+    return {
+      id, format, title, author: info.author,
+      fileName: f.name, size: f.size, pageCount: pageCountOf(book),
+      addedAt: Date.now(), lastOpened: 0, lastPage: 1, lastSeen: 1, lastFrac: 0, readSeconds: 0, cover,
+      ident: { kind, kindLabel: KINDS[kind].label, confidence: kind === 'book' || kind === 'document' ? 'medium' : 'high', albumName: KINDS[kind].album, isbn: info.isbn, year: info.year, scanned: false },
+    };
+  } finally { try { book.destroy?.(); } catch {} }
+}
+
+/** A free classic from Folio's library: added with the catalog's title and author, and filed into Classics. */
+export async function addClassic(file, info) {
+  const [book] = await importFiles([file], { quiet: true });
+  if (!book) return null;
+  const album = findAlbumByName('Classics') || await makeAlbum('Classics');
+  Object.assign(book, { title: info.title, author: info.author, albumId: album.id, fromLibrary: info.id });
+  book.ident = { ...book.ident, kind: 'fiction', kindLabel: KINDS.fiction.label, albumName: 'Classics', year: info.year, confidence: 'high' };
+  await db.put('books', book);
+  await loadLibrary();
+  return book;
+}
+
 /** quiet: add the books without the filing sheet or toasts (the tour's sample book). */
 export async function importFiles(fileList, { quiet = false } = {}) {
-  const files = [...fileList].filter((f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
-  if (!files.length) return toast('Please choose a PDF file');
+  const files = [...fileList].filter((f) => f && f.size !== undefined);
+  if (!files.length) return toast('Please choose a book file');
   navigator.storage?.persist?.().catch(() => {});
   let added = 0, dup = 0, failed = 0, lastErr = '';
+  const refused = [];
   const freshIds = [];
   const intoAlbum = albums.find((a) => a.id === scope)?.id;     // adding from inside an album files it there
   for (const f of files) {
     const step = (what) => busy(true, files.length > 1 ? `${what} ${added + dup + failed + 1} of ${files.length}…` : `${what}…`);
     step('Adding');
-    let pdf;
     try {
+      const format = await sniff(f);
       const buf = await f.arrayBuffer();
-      pdf = await openPdf(new Uint8Array(buf.slice(0)));
-      const id = pdf.fingerprints[0];
-      if (await db.get('books', id)) { dup++; continue; }
-      const meta = await pdf.getMetadata().catch(() => null);
-      step('Identifying');
-      const ident = await identify(pdf, { fileName: f.name, info: meta?.info || {} }).catch((e) => { console.warn(e); return null; });
-      const cover = await makeCover(pdf);
-      await db.put('files', buf, id);
-      const book = {
-        id, title: ident?.title || titleFromFileName(f.name), author: ident?.author || '',
-        fileName: f.name, size: f.size, pageCount: pdf.numPages,
-        addedAt: Date.now(), lastOpened: 0, lastPage: 1, lastSeen: 1, lastFrac: 0, readSeconds: 0, cover,
-        ident: ident && { kind: ident.kind, kindLabel: ident.kindLabel, confidence: ident.confidence, albumName: ident.albumName, isbn: ident.isbn, year: ident.year, scanned: ident.scanned },
-      };
+      const book = format === 'pdf' ? await addPdf(f, buf, step) : await addEbook(f, buf, format, step);
+      if (!book) { dup++; continue; }
+      const id = book.id;
       if (intoAlbum) book.albumId = intoAlbum;
       // Apply progress / title / album from a backup that was restored before this book was added
       const pending = ls.get('pendingProgress', {});
@@ -386,19 +432,26 @@ export async function importFiles(fileList, { quiet = false } = {}) {
         if (p.author != null) book.author = p.author;
         if (p.albumId) book.albumId = p.albumId;
         Object.assign(book, { lastPage: p.lastPage || 1, lastSeen: p.lastSeen || p.lastPage || 1, readSeconds: p.readSeconds || 0, lastOpened: p.lastOpened || 0 });
+        if (p.lastCfi) book.lastCfi = p.lastCfi;
         delete pending[id]; ls.set('pendingProgress', pending);
       }
       await db.put('books', book);
       added++; freshIds.push(id);
     } catch (e) {
-      console.error(e);
       failed++;
-      lastErr = e?.name === 'PasswordException' ? 'Password-protected PDFs aren’t supported' : e?.name === 'QuotaExceededError' ? 'Not enough storage space on this device' : 'Couldn’t read that PDF';
-    } finally {
-      pdf?.destroy();
+      if (e instanceof FormatError) { refused.push({ name: f.name, err: e }); lastErr = e.title; continue; }
+      console.error(e);
+      lastErr = e?.name === 'PasswordException' ? 'Password-protected PDFs aren’t supported' : e?.name === 'QuotaExceededError' ? 'Not enough storage space on this device' : `Couldn’t read ${f.name || 'that file'}`;
     }
   }
   busy(false);
+  // Files Folio can't open (locked by a store, or an unsupported kind) get a proper explanation.
+  if (refused.length && !quiet) {
+    const { err } = refused[0];
+    const more = refused.length > 1 ? `\n\n${plural(refused.length - 1, 'other file')} couldn’t be added either.` : '';
+    await infoDialog({ title: err.title, message: (refused.length > 1 || files.length > 1 ? `“${refused[0].name}”: ` : '') + err.message + more });
+    if (refused.length === failed && !added && !dup) return [];
+  }
   await loadLibrary();
   const fresh = freshIds.map((id) => books.find((b) => b.id === id)).filter(Boolean);
   if (quiet) return fresh;
@@ -429,7 +482,7 @@ let dragDepth = 0, dropHint = null;
 addEventListener('dragenter', (e) => {
   if (!libraryEl.hidden && e.dataTransfer?.types?.includes('Files')) {
     dragDepth++;
-    if (!dropHint) { dropHint = document.createElement('div'); dropHint.className = 'drop-hint'; dropHint.textContent = 'Drop PDFs to add them'; document.body.append(dropHint); }
+    if (!dropHint) { dropHint = document.createElement('div'); dropHint.className = 'drop-hint'; dropHint.textContent = 'Drop books to add them'; document.body.append(dropHint); }
   }
 });
 addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; dropHint?.remove(); dropHint = null; } });
@@ -466,7 +519,7 @@ function openIntake(list, mode) {
   intakeMode = mode;
   const isNew = mode === 'new';
   $('#intake-title').textContent = isNew ? (list.length === 1 ? 'New book' : `${list.length} new books`) : 'Edit details';
-  $('#intake-intro').textContent = isNew ? 'We looked inside each PDF. Check the details and pick an album to keep things tidy.' : '';
+  $('#intake-intro').textContent = isNew ? 'We looked inside each book. Check the details and pick an album to keep things tidy.' : '';
   $('#intake-intro').hidden = !isNew;
   $('#intake-suggest').hidden = !isNew || !list.some((b) => b.ident?.albumName);
   $('#intake-done').textContent = isNew ? 'Done' : 'Save';
@@ -478,6 +531,7 @@ function openIntake(list, mode) {
     const sug = suggestionValue(b);
     const tags = [
       id.kindLabel && `<span class="tag kind">${esc(id.kindLabel)}${id.confidence === 'low' ? '?' : ''}</span>`,
+      b.format && b.format !== 'pdf' && `<span class="tag">${esc(FORMAT_LABELS[b.format] || b.format.toUpperCase())}</span>`,
       id.scanned && `<span class="tag">Scanned</span>`,
       `<span class="tag">${plural(b.pageCount, 'page')}</span>`,
       id.isbn && `<span class="tag">ISBN ${esc(id.isbn)}</span>`,
@@ -588,7 +642,7 @@ $('#backup-btn').onclick = async () => {
   const data = {
     app: 'folio', version: 2, exportedAt: new Date().toISOString(),
     albums: als,
-    books: bks.map(({ id, title, author, fileName, pageCount, lastPage, lastSeen, readSeconds, lastOpened, albumId }) => ({ id, title, author, fileName, pageCount, lastPage, lastSeen, readSeconds, lastOpened, albumId })),
+    books: bks.map(({ id, title, author, fileName, pageCount, lastPage, lastSeen, lastCfi, readSeconds, lastOpened, albumId }) => ({ id, title, author, fileName, pageCount, lastPage, lastSeen, lastCfi, readSeconds, lastOpened, albumId })),
     bookmarks: bms,
   };
   const d = new Date();
@@ -627,7 +681,7 @@ $('#restore-input').onchange = async (e) => {
       const ex = await db.get('books', b.id);
       if (ex) {
         matched++;
-        if ((b.lastOpened || 0) > (ex.lastOpened || 0)) Object.assign(ex, { lastPage: b.lastPage, lastSeen: b.lastSeen || b.lastPage, lastOpened: b.lastOpened });
+        if ((b.lastOpened || 0) > (ex.lastOpened || 0)) Object.assign(ex, { lastPage: b.lastPage, lastSeen: b.lastSeen || b.lastPage, lastOpened: b.lastOpened, ...(b.lastCfi ? { lastCfi: b.lastCfi } : {}) });
         ex.readSeconds = Math.max(ex.readSeconds || 0, b.readSeconds || 0);
         if (albumId && !ex.albumId) ex.albumId = albumId;
         await db.put('books', ex);

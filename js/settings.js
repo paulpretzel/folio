@@ -12,6 +12,9 @@ const DEFAULTS = {
   resume: true,       // reopen the last book at launch
   review: true,       // show the "file your new books" sheet after adding
   sort: 'recent',
+  textSize: 100,      // text reader (EPUB, Kindle, Word…): % of the book's own size
+  textFont: 'book',   // a key from FONT_CHOICES in fonts.js
+  lineSpacing: 1.5,
 };
 
 const stored = ls.get('settings', {}) || {};

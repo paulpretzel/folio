@@ -1,7 +1,7 @@
 {
-  "name": "Folio — PDF Reader",
+  "name": "Folio — Book Reader",
   "short_name": "Folio",
-  "description": "Read PDF books offline, one page at a time. Keeps your place and sorts your books into albums.",
+  "description": "Read PDF, EPUB, Kindle and Word books offline, one page at a time. Keeps your place and sorts your books into albums.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -20,7 +20,16 @@
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {
-      "files": [{ "name": "pdfs", "accept": ["application/pdf", ".pdf"] }]
+      "files": [{ "name": "pdfs", "accept": [
+        "application/pdf", ".pdf",
+        "application/epub+zip", ".epub", ".kepub",
+        "application/x-mobipocket-ebook", "application/vnd.amazon.ebook", ".mobi", ".azw", ".azw3", ".prc",
+        "application/x-fictionbook+xml", ".fb2", ".fbz",
+        "application/vnd.comicbook+zip", ".cbz",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docx",
+        "text/plain", ".txt", "text/markdown", ".md", "text/html", ".html", ".htm",
+        "application/octet-stream"
+      ] }]
     }
   }
 }

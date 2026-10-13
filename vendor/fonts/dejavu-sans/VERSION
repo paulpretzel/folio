@@ -1,0 +1,1 @@
+From @fontsource/dejavu-sans 5.3.0 (npm), latin files, cut down to Latin and Latin Extended with hinting removed (fonttools pyftsubset --no-hinting) to shrink them. Licence: Bitstream Vera / DejaVu licence, see LICENSE.

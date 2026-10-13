@@ -1,6 +1,6 @@
-# Folio — PDF book reader for iPad & Android
+# Folio — book reader for iPad & Android
 
-A private, offline reading app. Turn pages sideways like a book, keep your PDFs sorted into albums, and pick up exactly where you left off. Your books, bookmarks and reading position stay on each device.
+A private, offline reading app for PDF, EPUB, Kindle and Word books. Turn pages sideways like a book, keep your books sorted into albums, and pick up exactly where you left off. Your books, bookmarks and reading position stay on each device.
 
 ## 1. Put it online (one time, ~5 minutes, from a computer)
 
@@ -35,11 +35,26 @@ The first time Folio opens with an empty shelf, it offers a quick tour that walk
 
 The guide PDF is built by `tools/make-sample-book.py` (needs `pip install reportlab`; it downloads the Source Serif 4 fonts into `tools/.fonts` and embeds them). Edit the text there and re-run it from the repo root to change it; if you reorder or retitle pages, update `STEPS` in `js/tour.js` to match.
 
+## Book formats
+
+| Format | How it reads |
+| --- | --- |
+| **PDF** | Page by page, exactly as printed, with zoom |
+| **EPUB** (2 and 3), **Kindle** (MOBI, AZW3, AZW), **FB2** | Text that re-flows to the screen, with your choice of text size, font and line spacing |
+| **Word** (.docx), **text** (.txt), **Markdown** (.md), **web pages** (.html) | Converted on the device into a re-flowing book, split into chapters at its headings |
+| **Comics** (CBZ) | One image per page |
+
+Re-flowing books count pages in steps of about 1,500 characters, so "page 41" stays the same place whatever the text size or screen, and bookmarks and backups keep working across devices.
+
+**Books locked by a store can't be opened.** Books bought from Amazon, Apple Books, Google Play Books or Kobo, and library loans, are copy-protected (DRM) and only open in their own apps. Folio recognises them and says so; it never tries to unlock them. The same goes for `.acsm` files (Adobe download tickets), the newer KFX Kindle format, and older formats like `.doc`, `.rtf` and `.odt` (save those as `.docx` or PDF first).
+
+Scripts inside EPUBs and web pages never run: the app's content security policy blocks them.
+
 ## Adding books (and what Folio does with them)
 
-- **Add book:** tap *Add book* and pick PDFs from Files, Drive or Downloads. You can pick several at once, or drag PDFs onto the window on a computer.
-- **Share to Folio (Android):** after installing from Chrome, open a downloaded PDF in Files/Downloads/Gmail → **Share → Folio**. It's added straight away. (iPad Safari doesn't offer this, so use *Add book* there. If you installed Folio before this version, Android may need a day to notice the new Share option, or remove and reinstall the app.)
-- **It reads each PDF for you.** Folio looks inside every new PDF, on your device only, and works out:
+- **Add book:** tap *Add book* and pick books from Files, Drive or Downloads. You can pick several at once, or drag them onto the window on a computer.
+- **Share to Folio (Android):** after installing from Chrome, open a downloaded book in Files/Downloads/Gmail → **Share → Folio**. It's added straight away. (iPad Safari doesn't offer this, so use *Add book* there. If you installed Folio before this version, Android may need a day to notice the new Share option, or remove and reinstall the app.)
+- **It reads each book for you.** EPUB and Kindle files carry their own title, author and cover. For PDFs, Folio looks inside every new one, on your device only, and works out:
   - the **title and author** (from the file's info, or the biggest text on the cover, or a cleaned-up file name),
   - the **ISBN** and copyright year, if it has them,
   - whether it's a **scan** (no selectable text),
@@ -65,12 +80,26 @@ The guide PDF is built by `tools/make-sample-book.py` (needs `pip install report
 - **Bookmark:** tap the ribbon at the top right (or press **B**).
 - **Contents / Bookmarks / Search:** the list button opens the side panel.
 - **Jump anywhere:** drag the slider at the bottom (it previews the chapter), or tap "Page X of Y" to type a page number. After any jump, a **Back to page N** button takes you back.
-- **Tт menu:** Auto/Light/Sepia/Dark theme, single/spread layout, zoom, dark pages in dark mode, tap-the-edge page turning, hide-the-bars, keep the screen awake.
+- **Tт menu:** Auto/Light/Sepia/Dark theme, single/spread layout, zoom, dark pages in dark mode, tap-the-edge page turning, hide-the-bars, keep the screen awake. In re-flowing books (EPUB, Kindle, Word…) zoom is replaced by **text size**, **font** and **line spacing**. The fonts are the book's own, a serif, and six bundled free fonts: Arimo (like Arial/Helvetica), DejaVu Sans (like Verdana), Comic Neue (like Comic Sans), Lexend, Atkinson Hyperlegible (for low vision) and OpenDyslexic (for dyslexia). PDFs keep the fonts printed in them, and **Ctrl/⌘ +/−/0** change the text size.
+- **Reading direction:** **Tт → Direction** (Auto / Left to right / Right to left), saved per book, in both readers. Auto reads it from the file (a PDF's right-to-left setting, an EPUB's page direction or language) or from Hebrew/Arabic text. Right to left flips taps, swipes, arrow keys, the slider, two-page spreads and the zoomed reading order (which starts top right), so it also suits manga.
 - **It remembers your spot:** your position is saved continuously. If you close the app while reading, it reopens straight to that page (you can turn this off in Library → settings).
+
+## Free classics (the built-in library)
+
+The **library icon** next to Settings (and **Get a free classic** on an empty shelf) opens **Free classics**: public-domain books on shelves, free to download and keep. **Get** downloads a book into the library, files it in a **Classics** album, and it then reads offline like any other book. Folio only fetches the list when that screen opens and a book when you tap Get, sends nothing about you, and lists each download in **Settings → Privacy**.
+
+**Building and updating the library (on your computer):**
+
+1. Edit `tools/library-books.csv`: one row per book, with its Project Gutenberg number (from the book's address, e.g. gutenberg.org/ebooks/**1342**), the year it was first published, the year the author died, its shelf (several with `;`) and a one-line blurb. Leave `title`/`author` empty to use the book's own.
+2. Run `python3 tools/make-library.py`. It skips any book that isn't public domain worldwide (first published 1930 or earlier, and the author died 1955 or earlier, as of 2026), downloads each new EPUB once from Gutenberg (slowly, and kept in `tools/.gutenberg-cache`), removes Project Gutenberg's name, header and licence (its name is a trademark), gives each book a plain cover and a credits page, and writes everything to a `library/` folder. If you'd rather download the EPUBs yourself, put them in a folder and add `--from-dir that-folder`.
+3. Read the **Please check** list at the end: it names anything that still mentions Gutenberg (usually a transcriber's note in the text) and any book it skipped.
+4. Upload the `library/` folder to your web host next to `index.html`. New books show up in the app the next time someone opens Free classics; no app update is needed.
+
+Until a `library/` folder is online, the screen says the library isn't available yet.
 
 ## Moving your library setup between devices
 
-Each device is separate. To copy your albums, bookmarks and reading positions: **Library → settings (sliders icon) → Back up**, send the file to the other device (AirDrop, Drive, email…), then **Restore** there. Everything attaches to the same PDF automatically, even if you add the book after restoring.
+Each device is separate. To copy your albums, bookmarks and reading positions: **Library → settings (sliders icon) → Back up**, send the file to the other device (AirDrop, Drive, email…), then **Restore** there. Everything attaches to the same book automatically, even if you add the book after restoring.
 
 ## Good to know
 
@@ -78,7 +107,7 @@ Each device is separate. To copy your albums, bookmarks and reading positions: *
 - Everything works **offline** after the first launch.
 - The Library settings show how much storage the app uses on the device.
 - **Highlights and notes were removed** in this version. If an older version of Folio saved any on your device, they are left untouched in the app's storage (nothing is deleted), they just aren't shown or exported any more. Backups made by older versions restore fine; their highlights are ignored.
-- PDF rendering uses Mozilla's pdf.js (Apache-2.0 license, included in `vendor/pdfjs`).
+- PDF rendering uses Mozilla's pdf.js (Apache-2.0 license, included in `vendor/pdfjs`). EPUB, Kindle, FB2 and comic books use [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT, `vendor/foliate`), and Word files are converted with [mammoth.js](https://github.com/mwilliamson/mammoth.js) (BSD-2-Clause, `vendor/mammoth`). Both are unmodified copies; `VERSION` in each folder says which. The reading fonts in `vendor/fonts` are free fonts under the SIL Open Font License (Arimo, Comic Neue, Lexend, Atkinson Hyperlegible, OpenDyslexic) and the Bitstream Vera licence (DejaVu Sans); see `vendor/fonts/README.md` and the `LICENSE` in each folder.
 
 ## For developers
 
@@ -90,7 +119,12 @@ No build step: it's plain ES modules served as static files.
 | `js/app.js` | Boot, shared-file intake |
 | `js/library.js` | Library, albums, import, review sheet, backup/restore |
 | `js/identify.js` | Offline PDF identification (title, author, ISBN, scan?, kind) |
-| `js/reader.js` | The paged reader: gestures, spreads, zoom, search, contents |
+| `js/reader.js` | The reader: bars, contents, bookmarks, search; pages, gestures, spreads and zoom for PDFs |
+| `js/flow.js` | The text reader for every other format (wraps foliate-js) |
+| `js/formats.js` | Detecting formats and locked books; Word/text/Markdown/HTML → book |
+| `js/fonts.js` | The reading fonts offered in the text reader (files in `vendor/fonts`) |
+| `js/store.js` | The Free classics screen (reads `library/catalog.json`, downloads books) |
+| `tools/make-library.py` | Builds `library/` from Gutenberg EPUBs listed in `tools/library-books.csv` |
 | `js/db.js` | IndexedDB (v2: books, files, bookmarks, albums) |
 | `js/ui.js`, `js/settings.js`, `js/pdf.js` | Shared helpers, settings/theme, pdf.js setup |
 | `sw.js`, `manifest.webmanifest` | Offline cache, Android share target |

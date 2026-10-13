@@ -3,13 +3,15 @@ import { applyTheme, settings } from './settings.js';
 import { initLibrary, loadLibrary, importFiles, getBooks } from './library.js';
 import { initReader, openBook } from './reader.js';
 import { initTour, maybeStartTour } from './tour.js';
+import { initStore } from './store.js';
 import { ls } from './ui.js';
 
 initReader({ onClose: () => loadLibrary() });
 initLibrary({ openBook });
 initTour({ openBook });
+initStore({ openBook });
 
-/* PDFs sent to Folio from another app (Android share sheet → Folio) are stashed
+/* Books sent to Folio from another app (Android share sheet → Folio) are stashed
    by the service worker; pick them up here and run them through the normal
    import + identify + file-into-an-album flow. */
 async function takeSharedFiles() {
@@ -21,8 +23,9 @@ async function takeSharedFiles() {
     for (const req of await cache.keys()) {
       const res = await cache.match(req);
       if (res) {
-        const name = decodeURIComponent(res.headers.get('X-Filename') || 'shared.pdf');
-        files.push(new File([await res.blob()], name, { type: 'application/pdf' }));
+        const name = decodeURIComponent(res.headers.get('X-Filename') || 'shared');
+        const blob = await res.blob();
+        files.push(new File([blob], name, { type: blob.type }));
       }
       await cache.delete(req);
     }
