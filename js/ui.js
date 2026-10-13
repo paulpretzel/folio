@@ -44,7 +44,7 @@ export function toast(msg, { action, onAction, ms = 2400 } = {}) {
     b.textContent = action;
     b.onclick = () => { toastEl.classList.remove('show'); onAction?.(); };
     toastEl.append(b);
-    ms = 5000;
+    ms = Math.max(ms, 5000);
   }
   toastEl.classList.add('show');
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
@@ -78,11 +78,36 @@ addEventListener('popstate', () => {
 export const topOverlay = () => overlays[overlays.length - 1]?.name;
 export const hasOverlay = (name) => overlays.some((o) => o.name === name);
 
+/* Modals are announced as dialogs, take the focus while open (Tab stays inside),
+   and hand it back to whatever opened them. */
 export function openModal(el, onClose) {
+  const back = document.activeElement;
   el.hidden = false;
-  pushOverlay(el.id, () => { el.hidden = true; onClose?.(); });
+  el.querySelector('.modal-card')?.focus({ preventScroll: true });
+  pushOverlay(el.id, () => {
+    el.hidden = true;
+    onClose?.();
+    if (back?.isConnected) back.focus?.({ preventScroll: true });
+  });
 }
+const FOCUSABLE = 'button:not([hidden]):not([disabled]), input:not([hidden]):not([disabled]), select, textarea:not([hidden]), a[href], summary, [tabindex="0"]';
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const m = document.getElementById(topOverlay() || '');
+  if (!m?.classList.contains('modal') || m.hidden) return;
+  const items = $$(FOCUSABLE, m).filter((x) => x.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (!m.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+  else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 for (const m of $$('.modal')) {
+  m.setAttribute('role', 'dialog');
+  m.setAttribute('aria-modal', 'true');
+  const card = m.querySelector('.modal-card'), title = m.querySelector('h3, .action-title');
+  card?.setAttribute('tabindex', '-1');
+  if (title) { title.id ||= `${m.id}-title`; m.setAttribute('aria-labelledby', title.id); }
   m.addEventListener('click', (e) => {
     // .sticky modals hold unsaved edits, so a stray tap outside shouldn't dismiss them
     if ((e.target === m && !m.classList.contains('sticky')) || e.target.closest('[data-close]')) closeTop();

@@ -27,6 +27,7 @@ const filterEl = $('#lib-filter');
    ================================================================ */
 export async function loadLibrary() {
   [books, albums] = await Promise.all([db.all('books'), db.all('albums')]);
+  books = books.filter((b) => !removing.ids.has(b.id));
   albums.sort((a, b) => a.createdAt - b.createdAt);
   if (scope !== 'all' && scope !== 'unsorted' && !albums.some((a) => a.id === scope)) scope = 'all';
   renderLibrary();
@@ -126,6 +127,7 @@ export function renderLibrary() {
     const p = pct(recent);
     cont.hidden = false;
     cont.dataset.id = recent.id;
+    cont.setAttribute('aria-label', `Continue reading ${recent.title}, page ${recent.lastPage} of ${recent.pageCount}`);
     cont.innerHTML = `
       <div class="cover">${coverHtml(recent)}</div>
       <div class="grow">
@@ -164,15 +166,20 @@ export function renderLibrary() {
   gridEl.innerHTML = list.map((b) => {
     const p = pct(b);
     const status = !b.lastOpened ? plural(b.pageCount, 'page') : p >= 100 ? 'Finished' : `${p}%`;
+    // One button covers the card, so screen readers and keyboards get a single "open" (or "select") control.
+    const said = [b.title, b.author && `by ${b.author}`, !b.lastOpened ? 'new' : '', status, b.lastOpened ? `read ${relTime(b.lastOpened)}` : ''].filter(Boolean).join(', ');
     return `
     <div class="book${selected.has(b.id) ? ' picked' : ''}" data-id="${esc(b.id)}">
-      <div class="cover">${coverHtml(b)}</div>
-      ${!b.lastOpened && !selecting ? '<span class="badge-new">NEW</span>' : ''}
-      ${selecting ? `<span class="check">${icon('check')}</span>` : `<button class="more" aria-label="Options for ${esc(b.title)}">${icon('more')}</button>`}
+      <button class="book-open" ${selecting ? `aria-pressed="${selected.has(b.id)}" aria-label="Select ${esc(said)}"` : `aria-label="Open ${esc(said)}"`}></button>
+      <div class="cover" aria-hidden="true">${coverHtml(b)}</div>
+      ${!b.lastOpened && !selecting ? '<span class="badge-new" aria-hidden="true">NEW</span>' : ''}
+      ${selecting ? `<span class="check" aria-hidden="true">${icon('check')}</span>` : `<button class="more" aria-label="Options for ${esc(b.title)}">${icon('more')}</button>`}
+      <div class="book-text" aria-hidden="true">
       <h3>${esc(b.title)}</h3>
       ${b.author ? `<div class="by">${esc(b.author)}</div>` : ''}
       ${b.lastOpened ? `<div class="progress"><i style="width:${p}%"></i></div>` : ''}
       <div class="meta"><span>${status}</span><span>${b.lastOpened ? relTime(b.lastOpened) : ''}</span></div>
+      </div>
     </div>`;
   }).join('') || (q ? `<p class="muted note-block">No books match “${esc(q)}”.</p>`
     : books.length ? `<p class="muted note-block">${scope === 'unsorted' ? 'Everything is sorted into an album.' : 'This album is empty. Use <b>Select</b> in the library, then <b>Move</b>, to add books here.'}</p>` : '');
@@ -193,12 +200,16 @@ gridEl.addEventListener('click', (e) => {
   if (selecting) {
     selected.has(book.id) ? selected.delete(book.id) : selected.add(book.id);
     card.classList.toggle('picked', selected.has(book.id));
+    card.querySelector('.book-open')?.setAttribute('aria-pressed', selected.has(book.id));
     $('#sel-count').textContent = selected.size ? `${selected.size} selected` : 'Select books';
     for (const b of $$('#select-bar [data-needs-pick]')) b.disabled = !selected.size;
   } else if (e.target.closest('.more')) bookMenu(book);
   else hooks.openBook(book.id);
 });
 $('#continue').addEventListener('click', (e) => hooks.openBook(e.currentTarget.dataset.id));
+$('#continue').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); hooks.openBook(e.currentTarget.dataset.id); }
+});
 $('#continue').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); hooks.openBook(e.currentTarget.dataset.id); } });
 filterEl.addEventListener('input', renderLibrary);
 
@@ -264,13 +275,40 @@ $('#sel-move').onclick = () => { if (selected.size) albumPicker([...selected]); 
 $('#sel-remove').onclick = async () => {
   const ids = [...selected];
   if (!ids.length) return;
-  const ok = await confirmDialog({ title: `Remove ${plural(ids.length, 'book')}?`, message: 'They and their bookmarks will be deleted from this device.', okText: 'Remove', danger: true });
-  if (!ok) return;
-  for (const id of ids) { await db.deleteBook(id); if (ls.get('openBook') === id) ls.del('openBook'); }
   await closeTop();
-  await loadLibrary();
-  toast(`${plural(ids.length, 'book')} removed`);
+  removeBooks(ids, `${plural(ids.length, 'book')} removed`);
 };
+
+/* Removing is undoable: the books disappear at once, and are only deleted
+   (with their bookmarks) once the Undo has had its chance, or when Folio goes
+   to the background. If Folio is killed before then, they're simply still there. */
+const UNDO_MS = 7000;
+const removing = { ids: new Set(), timer: 0 };
+async function finishRemoving() {
+  clearTimeout(removing.timer);
+  const ids = [...removing.ids];
+  for (const id of ids) {
+    try { await db.deleteBook(id); } catch (e) { console.error(e); }
+    removing.ids.delete(id);
+    if (ls.get('openBook') === id) ls.del('openBook');
+  }
+}
+async function removeBooks(ids, message) {
+  await finishRemoving();                                  // an earlier removal's Undo is gone once this toast replaces it
+  ids.forEach((id) => removing.ids.add(id));
+  await loadLibrary();
+  removing.timer = setTimeout(finishRemoving, UNDO_MS);
+  toast(message, {
+    action: 'Undo', ms: UNDO_MS,
+    onAction: async () => {
+      clearTimeout(removing.timer);
+      ids.forEach((id) => removing.ids.delete(id));
+      await loadLibrary();
+      toast(ids.length > 1 ? 'Books put back' : 'Book put back');
+    },
+  });
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden && removing.ids.size) finishRemoving(); });
 
 function albumPicker(ids) {
   const homes = new Set(ids.map((id) => books.find((b) => b.id === id)?.albumId || ''));
@@ -286,14 +324,7 @@ function bookMenu(book) {
   actionSheet(book.title, [
     { label: 'Move to album', icon: 'folder', sub: albumOf(book)?.name, run: () => albumPicker([book.id]) },
     { label: 'Edit details', icon: 'pencil', run: () => openIntake([book], 'edit') },
-    { label: 'Remove from library', icon: 'trash', danger: true, run: async () => {
-      const ok = await confirmDialog({ title: 'Remove this book?', message: `“${book.title}” and its bookmarks will be deleted from this device.`, okText: 'Remove', danger: true });
-      if (!ok) return;
-      await db.deleteBook(book.id);
-      if (ls.get('openBook') === book.id) ls.del('openBook');
-      await loadLibrary();
-      toast('Book removed');
-    } },
+    { label: 'Remove from library', icon: 'trash', danger: true, run: () => removeBooks([book.id], `Removed “${book.title}”`) },
   ]);
 }
 
