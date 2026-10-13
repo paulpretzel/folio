@@ -331,10 +331,7 @@ function bookMenu(book) {
 /* ================================================================
    Importing & identifying
    ================================================================ */
-const fileInput = $('#file-input');
-$('#add-book-btn').onclick = () => fileInput.click();
-$('#empty-add-btn').onclick = () => fileInput.click();
-fileInput.onchange = () => { importFiles(fileInput.files); fileInput.value = ''; };
+// The Add book button and its pickers live in addbooks.js
 
 async function makeCover(pdf) {
   try {
