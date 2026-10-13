@@ -187,6 +187,8 @@ h1, h2, h3, h4 { margin: 0; }
 @media (max-width: 520px) { .book-grid { grid-template-columns: repeat(2, 1fr); gap: 24px 16px; } }
 .note-block { grid-column: 1 / -1; text-align: center; padding: 28px 12px; line-height: 1.5; margin: 0; }
 .book { position: relative; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.book-open { position: absolute; inset: -4px; z-index: 1; border-radius: 12px; background: none; }
+.book-open:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .cover {
   aspect-ratio: 3 / 4.2; border-radius: 6px 10px 10px 6px; overflow: hidden; background: var(--surface-2);
   box-shadow: var(--shadow); position: relative; transition: transform .2s var(--ease), box-shadow .2s;
@@ -204,7 +206,7 @@ h1, h2, h3, h4 { margin: 0; }
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .book .by { font-size: 12.5px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .book .meta { font-size: 12.5px; color: var(--muted); margin-top: 4px; display: flex; justify-content: space-between; gap: 6px; }
-.book .more { position: absolute; top: 6px; right: 6px; width: 34px; height: 34px; border-radius: 50%;
+.book .more { position: absolute; z-index: 2; top: 6px; right: 6px; width: 34px; height: 34px; border-radius: 50%;
   background: rgb(0 0 0 / .45); color: #fff; display: grid; place-items: center; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .book .more svg { width: 18px; height: 18px; }
 .book .badge-new { position: absolute; top: 8px; left: 8px; background: var(--accent); color: var(--accent-ink); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 3px 7px; border-radius: 6px; }
@@ -425,6 +427,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 
 .modal { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / .38); display: grid; place-items: center; padding: 20px; padding-bottom: calc(var(--sab) + 20px); animation: fade-in .18s; }
 .modal-card { background: var(--surface); width: min(480px, 100%); border-radius: 22px; padding: 18px 20px; box-shadow: var(--shadow-lg); max-height: 90vh; overflow: auto; animation: rise .24s var(--ease); }
 @keyframes rise { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
+.modal-card:focus { outline: none; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .modal-card h3 { font-family: var(--serif); font-size: 20px; margin-bottom: 10px; }
 .modal-head h3 { margin: 0; }
@@ -433,6 +436,17 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 
 .sheet-section h4 { font-size: 15px; margin-bottom: 4px; }
 .sheet-section p { margin: 4px 0 0; line-height: 1.45; }
 #storage-info { margin: 12px 0 0; }
+.privacy-status { display: flex; gap: 12px; align-items: flex-start; margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--surface-2); }
+.privacy-status svg { width: 24px; height: 24px; flex: none; color: var(--muted); }
+.privacy-status.clear svg { color: var(--accent); }
+.privacy-status small, .privacy-log small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.4; margin-top: 2px; }
+.privacy-log { margin-top: 8px; font-size: 14px; }
+.privacy-log summary { cursor: pointer; padding: 6px 0; font-weight: 600; }
+.privacy-log ul { list-style: none; margin: 0; padding: 0; }
+.privacy-log li { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.about .btn-row { margin-bottom: 8px; }
+a.btn { text-decoration: none; }
+.sheet-section a:not(.btn) { color: var(--accent); }
 .text-input { width: 100%; font: inherit; font-size: 16px; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; outline: none; resize: vertical; }
 .text-input:focus { border-color: var(--accent); }
 #dialog-msg { line-height: 1.45; margin: 0; }
