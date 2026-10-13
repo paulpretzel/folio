@@ -16,13 +16,15 @@ What it does, for each book in the list:
      20% royalty is paid; without the name and licence the text is free to use. Anything that
      still mentions Gutenberg afterwards is listed so you can look at it.
   4. Gives the book a plain, consistent cover (title and author) and a short credits page.
-  5. Writes library/books/<slug>.epub, library/covers/<slug>.svg and library/catalog.json.
+  5. Shrinks big illustrations to phone size, if Pillow is installed (python -m pip install pillow).
+     Some illustrated editions are 20 to 50 MB otherwise.
+  6. Writes library/books/<slug>.epub, library/covers/<slug>.svg and library/catalog.json.
 
 Upload the whole library/ folder to the same web host as Folio, next to index.html. The app reads
 library/catalog.json; nothing else is needed. Run it again whenever you change the list: books that
 are already built are rebuilt from the cache, so it's quick.
 
-Only the Python standard library is used. Not legal advice: if in doubt about a book, leave it out.
+Only the Python standard library is needed (Pillow is optional). Not legal advice: if in doubt about a book, leave it out.
 """
 import argparse, csv, datetime, hashlib, html, json, os, posixpath, re, sys, time, urllib.request, zipfile
 
@@ -37,6 +39,9 @@ CREDITS = '''<p>This is a free public-domain book from <b>Folio Classics</b>.</p
 <p>The text was transcribed and proofread by volunteers, from a public-domain edition. It is in the
 public domain, so you may read, copy and share it freely.</p>
 <p>This edition’s cover and this page were made for Folio. If you spot a typo, please let us know.</p>'''
+
+MAX_PICTURE = 800                    # longest side, in pixels, of pictures inside a book
+BIG_BOOK = 8_000_000                 # warn about books bigger than this
 
 PALETTE = ['#7a2e2a', '#294a6b', '#2f5d50', '#5b3f74', '#8a5a1f', '#3d4b55', '#6b2f4f', '#2e5a6e']
 
@@ -90,6 +95,8 @@ def main():
             if s not in shelves:
                 shelves.append(s)
         books.append(book)
+        if book['bytes'] > BIG_BOOK:
+            problems.append(f"{book['title']}: is {book['bytes'] // 1_000_000} MB, a big download on a phone")
         print(f"  ✓ {book['title']} — {book['author']} ({book['bytes'] // 1024} KB, about {fmt_minutes(book['minutes'])})")
 
     catalog = {
@@ -182,6 +189,7 @@ def build(data, row):
             continue
         doc = files[path].decode('utf-8')
         new = strip_boilerplate(doc)
+        new = strip_mentions(new, notes)
         new = re.sub(r'(<title>)([^<]*)(</title>)', lambda m: m.group(1) + (esc(title) if GUT.search(m.group(2)) else m.group(2)) + m.group(3), new)
         if new != doc:
             removed_any = True
@@ -202,11 +210,12 @@ def build(data, row):
         if path not in files:
             continue
         if 'nav' in it.get('properties', ''):
+            files[path] = strip_head(files[path].decode('utf-8'), slug).encode('utf-8')
             files[path] = clean_toc(files[path].decode('utf-8'), 'li', gone, posixpath.dirname(path), opf_dir).encode('utf-8')
         elif it['media-type'] == 'application/x-dtbncx+xml':
             ncx = clean_toc(files[path].decode('utf-8'), 'navPoint', gone, posixpath.dirname(path), opf_dir)
             ncx = re.sub(r'(<docTitle>\s*<text>)[^<]*(</text>)', lambda m: m.group(1) + esc(title) + m.group(2), ncx)
-            ncx = re.sub(r'(<meta\b[^>]*name\s*=\s*"dtb:uid"[^>]*content\s*=\s*")[^"]*(")', lambda m: m.group(1) + f'urn:folio-classics:{slug}' + m.group(2), ncx)
+            ncx = strip_head(ncx, slug)
             files[path] = ncx.encode('utf-8')
 
     # 3. Package metadata: no Gutenberg identifier, source, publisher or links.
@@ -219,11 +228,13 @@ def build(data, row):
     files[posixpath.join(opf_dir, 'folio-credits.xhtml')] = credits_page(title, lang).encode('utf-8')
     opf = opf.replace('</manifest>', '  <item id="folio-credits" href="folio-credits.xhtml" media-type="application/xhtml+xml"/>\n  </manifest>')
     opf = opf.replace('</spine>', '  <itemref idref="folio-credits"/>\n  </spine>')
+    opf = drop_full_size_pages(files, opf, opf_dir)
     files[opf_path] = opf.encode('utf-8')
+    shrink_pictures(files, notes)
 
     # 5. Anything that still says Gutenberg (sometimes a transcriber's note in the text itself).
     for path, content in files.items():
-        if path.endswith(('.xhtml', '.html', '.htm', '.opf', '.ncx', '.xml', '.css')):
+        if path.endswith(('.xhtml', '.html', '.htm', '.opf', '.ncx', '.xml')):   # CSS selectors are never shown
             for m in GUT.finditer(content.decode('utf-8', 'replace')):
                 s = content.decode('utf-8', 'replace')
                 ctx = re.sub(r'<[^>]+>|\s+', ' ', s[max(0, m.start() - 60):m.end() + 60]).strip()
@@ -241,6 +252,110 @@ def build(data, row):
         'file': f'{slug}.epub', 'cover': f'{slug}.svg',
     }
     return entry, epub, cover_svg, notes
+
+
+BLOCK = re.compile(r'<(p|div|table|blockquote|ul|ol|li|h[1-6])\b[^>]*?(/?)>', re.I)
+SMALL_NOTE = 600                     # characters: a note about other editions, never a chapter
+
+
+def strip_head(doc, slug):
+    """No "made by Gutenberg's Ebookmaker" tags, and the book's own id instead of Gutenberg's."""
+    doc = re.sub(r'<meta\b[^>]*name\s*=\s*"(?:generator|dtb:generator)"[^>]*content\s*=\s*"[^"]*gutenberg[^"]*"[^>]*>\s*', '', doc, flags=re.I)
+    return re.sub(r'(<meta\b[^>]*name\s*=\s*"dtb:uid"[^>]*content\s*=\s*")[^"]*(")', lambda m: m.group(1) + f'urn:folio-classics:{slug}' + m.group(2), doc)
+
+
+def strip_mentions(doc, notes):
+    """Remove short notes that point readers at Gutenberg (other editions, transcriber's notes).
+
+    Takes the largest block around each mention that is still only a short note, so a whole
+    "Transcriber's notes" box goes, but a chapter that happens to say Gutenberg never does."""
+    doc = re.sub(r'<meta\b[^>]*name\s*=\s*"generator"[^>]*content\s*=\s*"[^"]*gutenberg[^"]*"[^>]*>\s*', '', doc, flags=re.I)
+    body = re.search(r'<body\b[^>]*>', doc, re.I)
+    start_at = body.end() if body else 0
+    skip = 0
+    while True:
+        hit = None
+        for m in GUT.finditer(doc, start_at):
+            if skip:
+                skip -= 1
+                continue
+            hit = m
+            break
+        if not hit:
+            return doc
+        best = None
+        for b in BLOCK.finditer(doc, start_at, hit.start()):
+            if b.group(2):
+                continue
+            end = matching_end(doc, b.group(1), b.start())
+            if end > hit.end() and len(visible_text(doc[b.start():end])) <= SMALL_NOTE:
+                if not best or b.start() < best[0]:
+                    best = (b.start(), end)
+        if best:
+            doc = doc[:best[0]] + doc[best[1]:]
+        else:
+            skip += 1                        # listed in "Please check" by the final scan
+    return doc
+
+
+WRAP_PAGE = re.compile(r'\.wrap-\d+\.html\.xhtml$')
+
+
+def drop_full_size_pages(files, opf, opf_dir):
+    """Illustrated Gutenberg books show each picture twice: in the text, and again full size on its
+    own page that the picture links to. Keep the one in the text (Folio can zoom), drop the rest."""
+    items = manifest(opf)
+    wraps = {it['href'] for it in items if WRAP_PAGE.search(it['href'])}
+    if not wraps:
+        return opf
+    link = re.compile(r'<a\b[^>]*href\s*=\s*"([^"#]+)"[^>]*>(.*?)</a>', re.S)
+    for name in files:
+        if name.endswith(('.xhtml', '.html', '.htm')) and posixpath.relpath(name, opf_dir) not in wraps:
+            doc = files[name].decode('utf-8')
+            new = link.sub(lambda m: m.group(2) if posixpath.basename(urllib.request.unquote(m.group(1))) in wraps else m.group(0), doc)
+            if new != doc:
+                files[name] = new.encode('utf-8')
+    text = ''.join(v.decode('utf-8', 'replace') for k, v in files.items()
+                   if k.endswith(('.xhtml', '.html', '.htm', '.css', '.ncx')) and posixpath.relpath(k, opf_dir) not in wraps)
+    for it in items:
+        unused = re.search(r'\.(jpe?g|png|gif)$', it['href'], re.I) and posixpath.basename(it['href']) not in text
+        if it['href'] in wraps or unused:
+            opf = re.sub(r'<itemref\b[^>]*idref\s*=\s*"%s"[^>]*/>\s*' % re.escape(it['id']), '', opf)
+            opf = re.sub(r'<item\b[^>]*id\s*=\s*"%s"[^>]*/>\s*' % re.escape(it['id']), '', opf)
+            files.pop(posixpath.normpath(posixpath.join(opf_dir, it['href'])), None)
+    return opf
+
+
+def shrink_pictures(files, notes):
+    """Scale pictures down to MAX_PICTURE pixels, keeping file names and formats so no page changes."""
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:
+        if sum(len(v) for k, v in files.items() if k.lower().endswith(('.jpg', '.jpeg', '.png'))) > BIG_BOOK:
+            notes.append('has big pictures; install Pillow (python -m pip install pillow) and run again to shrink them')
+        return
+    import io
+    for name, data in list(files.items()):
+        ext = name.lower().rsplit('.', 1)[-1]
+        if ext not in ('jpg', 'jpeg', 'png') or len(data) < 30_000:
+            continue
+        try:
+            im = Image.open(io.BytesIO(data))
+            im.load()
+            im.thumbnail((MAX_PICTURE, MAX_PICTURE), Image.LANCZOS)
+            if im.mode == 'RGB':                 # old engravings scanned in colour: grey is a third of the size
+                grey = im.convert('L')
+                if max(hi for lo, hi in ImageChops.difference(im, grey.convert('RGB')).getextrema()) < 24:
+                    im = grey
+            out = io.BytesIO()
+            if ext == 'png':
+                im.save(out, 'PNG', optimize=True)
+            else:
+                im.convert('L' if im.mode == 'L' else 'RGB').save(out, 'JPEG', quality=70, optimize=True, progressive=True)
+            if out.tell() < len(data):
+                files[name] = out.getvalue()
+        except Exception:
+            pass                             # leave a picture Pillow can't read as it is
 
 
 def strip_boilerplate(doc):
