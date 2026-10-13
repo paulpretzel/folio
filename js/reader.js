@@ -1560,7 +1560,13 @@ async function openFlowBook(book, buf, gen) {
         onRelocate: (loc) => { if (gen === R.gen) onFlowMove(loc); },
         onTap: (pt) => { if (gen === R.gen) onFlowTap(pt); },
         onKey: (e) => onKeyDown(e),
-        onWheel: (e) => { if (gen !== R.gen) return; e.preventDefault(); R.lastActivity = Date.now(); wheelTurn(e.deltaX, e.deltaY); },
+        onWheel: (e) => {
+          if (gen !== R.gen) return;
+          e.preventDefault(); R.lastActivity = Date.now();
+          if (e.ctrlKey) return flowWheelZoom(e.deltaY);    // trackpad pinch, or Ctrl + wheel
+          wheelTurn(e.deltaX, e.deltaY);
+        },
+        onPinch: (k) => { if (gen === R.gen) { setTextSize(settings.textSize * k); toast(`Text size ${settings.textSize}%`); } },
       },
     });
   } catch (e) {
@@ -1703,6 +1709,17 @@ async function runFlowSearch(q, token) {
   } catch (e) { console.warn(e); }
   if (token !== R.searchToken || gen !== R.gen) return;
   status.textContent = count ? `${count}${count >= 500 ? '+' : ''} result${count === 1 ? '' : 's'} for “${q}”` : `No results for “${q}”`;
+}
+
+let zoomAcc = 0, zoomTimer = 0;
+function flowWheelZoom(dy) {
+  zoomAcc += dy;
+  clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(() => {                         // apply once the pinch pauses: each change re-flows the book
+    const k = Math.exp(-zoomAcc * 0.01);
+    zoomAcc = 0;
+    if (Math.abs(k - 1) > 0.04) { setTextSize(settings.textSize * k); toast(`Text size ${settings.textSize}%`); }
+  }, 160);
 }
 
 function setTextSize(v) {

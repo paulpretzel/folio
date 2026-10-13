@@ -425,6 +425,7 @@ export class Paginator extends HTMLElement {
     static observedAttributes = [
         'flow', 'gap', 'margin',
         'max-inline-size', 'max-block-size', 'max-column-count',
+        'max-column-count-portrait', // Folio: lets the reader ask for two pages in portrait too
     ]
     #root = this.attachShadow({ mode: 'closed' })
     #observer = new ResizeObserver(() => this.render())
@@ -447,6 +448,7 @@ export class Paginator extends HTMLElement {
     #mediaQueryListener
     #scrollBounds
     #touchState
+    #scrollGen = 0 // Folio: only the newest scroll animation moves the page
     #touchScrolled
     #lastVisibleRange
     constructor() {
@@ -635,6 +637,10 @@ export class Paginator extends HTMLElement {
             case 'max-block-size':
             case 'max-column-count':
                 this.#top.style.setProperty('--_' + name, value)
+                break
+            case 'max-column-count-portrait': // Folio
+                this.#top.style.setProperty('--_' + name, value)
+                this.render()
                 break
             case 'max-inline-size':
                 // needs explicit `render()` as it doesn't necessarily resize
@@ -858,7 +864,8 @@ export class Paginator extends HTMLElement {
         // at this point I'm basically throwing `requestAnimationFrame` at
         // anything that doesn't work
         requestAnimationFrame(() => {
-            if (globalThis.visualViewport.scale === 1)
+            // Folio: a tap that turns the page is also a touch; don't snap back over the turn
+            if (globalThis.visualViewport.scale === 1 && !this.#locked)
                 this.snap(this.#touchState.vx, this.#touchState.vy)
         })
     }
@@ -898,10 +905,12 @@ export class Paginator extends HTMLElement {
         }
         // FIXME: vertical-rl only, not -lr
         if (this.scrolled && this.#vertical) offset = -offset
+        const gen = ++this.#scrollGen // Folio
         if ((reason === 'snap' || smooth) && this.hasAttribute('animated')) return animate(
             element[scrollProp], offset, 300, easeOutQuad,
-            x => element[scrollProp] = x,
+            x => { if (gen === this.#scrollGen) element[scrollProp] = x },
         ).then(() => {
+            if (gen !== this.#scrollGen) return
             this.#scrollBounds = [offset, this.atStart ? 0 : size, this.atEnd ? 0 : size]
             this.#afterScroll(reason)
         })
