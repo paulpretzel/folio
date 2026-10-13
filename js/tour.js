@@ -31,8 +31,8 @@ const tocEntry = (title) => () => [...document.querySelectorAll('#toc-list .toc-
    lost: what to show instead while the target is gone · when: skip the step unless this is true */
 const STEPS = [
   { target: sampleCover, text: 'Tap to open the guide', until: 'open' },
-  { page: 2, gesture: 'double', text: 'Double-tap to zoom in', until: 'zoom', test: (d) => d.zoom > 1.02 },
-  { page: 2, gesture: 'double', text: 'Double-tap to zoom out', until: 'zoom', test: (d) => d.zoom <= 1.02 },
+  { page: 2, gesture: 'double', text: 'Double-tap to zoom in', until: 'zoom', test: (d) => d.zoomedIn ?? d.zoom > 1.02 },
+  { page: 2, gesture: 'double', text: 'Double-tap to zoom out', until: 'zoom', test: (d) => !(d.zoomedIn ?? d.zoom > 1.02) },
   { page: 3, gesture: 'tap', text: 'Tap the middle of the page', until: 'bars' },
   { page: 4, target: '#bookmark-btn', text: 'Tap the ribbon', until: 'bookmark', bars: true },
   { page: 5, target: '#panel-btn', text: 'Tap the list button', until: 'panel', bars: true },

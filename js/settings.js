@@ -5,6 +5,7 @@ const DEFAULTS = {
   theme: 'auto',
   invert: true,       // dark pages in dark theme
   tapTurn: true,      // tap left/right edge to turn the page
+  fitText: false,     // zoom each page so its text fills the screen (margins trimmed)
   keepAwake: false,
   autoHide: true,     // hide the reader bars when you turn a page
   layout: 'auto',     // 'auto' | 'single' | 'double' (two-page spreads)
