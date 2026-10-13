@@ -393,6 +393,18 @@ async function addEbook(f, buf, format, step) {
   } finally { try { book.destroy?.(); } catch {} }
 }
 
+/** A free classic from Folio's library: added with the catalog's title and author, and filed into Classics. */
+export async function addClassic(file, info) {
+  const [book] = await importFiles([file], { quiet: true });
+  if (!book) return null;
+  const album = findAlbumByName('Classics') || await makeAlbum('Classics');
+  Object.assign(book, { title: info.title, author: info.author, albumId: album.id, fromLibrary: info.id });
+  book.ident = { ...book.ident, kind: 'fiction', kindLabel: KINDS.fiction.label, albumName: 'Classics', year: info.year, confidence: 'high' };
+  await db.put('books', book);
+  await loadLibrary();
+  return book;
+}
+
 /** quiet: add the books without the filing sheet or toasts (the tour's sample book). */
 export async function importFiles(fileList, { quiet = false } = {}) {
   const files = [...fileList].filter((f) => f && f.size !== undefined);

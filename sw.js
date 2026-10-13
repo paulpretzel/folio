@@ -18,6 +18,7 @@ const SHELL = [
   'js/formats.js',
   'js/flow.js',
   'js/fonts.js',
+  'js/store.js',
   'samples/welcome-to-folio.pdf',
   'manifest.webmanifest',
   'icons/icon-192.png',
@@ -134,6 +135,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (req.method !== 'GET') return;
+  // The free classics library: the catalog is always fetched fresh (the app keeps its own copy for
+  // offline), and books go straight into the library's storage, so neither is cached here. Covers are.
+  if (url.pathname.includes('/library/') && !url.pathname.endsWith('.svg')) return;
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
     const hit = await cache.match(req, { ignoreSearch: true });

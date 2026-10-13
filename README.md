@@ -84,6 +84,19 @@ Scripts inside EPUBs and web pages never run: the app's content security policy 
 - **Reading direction:** **Tт → Direction** (Auto / Left to right / Right to left), saved per book, in both readers. Auto reads it from the file (a PDF's right-to-left setting, an EPUB's page direction or language) or from Hebrew/Arabic text. Right to left flips taps, swipes, arrow keys, the slider, two-page spreads and the zoomed reading order (which starts top right), so it also suits manga.
 - **It remembers your spot:** your position is saved continuously. If you close the app while reading, it reopens straight to that page (you can turn this off in Library → settings).
 
+## Free classics (the built-in library)
+
+The **library icon** next to Settings (and **Get a free classic** on an empty shelf) opens **Free classics**: public-domain books on shelves, free to download and keep. **Get** downloads a book into the library, files it in a **Classics** album, and it then reads offline like any other book. Folio only fetches the list when that screen opens and a book when you tap Get, sends nothing about you, and lists each download in **Settings → Privacy**.
+
+**Building and updating the library (on your computer):**
+
+1. Edit `tools/library-books.csv`: one row per book, with its Project Gutenberg number (from the book's address, e.g. gutenberg.org/ebooks/**1342**), the year it was first published, the year the author died, its shelf (several with `;`) and a one-line blurb. Leave `title`/`author` empty to use the book's own.
+2. Run `python3 tools/make-library.py`. It skips any book that isn't public domain worldwide (first published 1930 or earlier, and the author died 1955 or earlier, as of 2026), downloads each new EPUB once from Gutenberg (slowly, and kept in `tools/.gutenberg-cache`), removes Project Gutenberg's name, header and licence (its name is a trademark), gives each book a plain cover and a credits page, and writes everything to a `library/` folder. If you'd rather download the EPUBs yourself, put them in a folder and add `--from-dir that-folder`.
+3. Read the **Please check** list at the end: it names anything that still mentions Gutenberg (usually a transcriber's note in the text) and any book it skipped.
+4. Upload the `library/` folder to your web host next to `index.html`. New books show up in the app the next time someone opens Free classics; no app update is needed.
+
+Until a `library/` folder is online, the screen says the library isn't available yet.
+
 ## Moving your library setup between devices
 
 Each device is separate. To copy your albums, bookmarks and reading positions: **Library → settings (sliders icon) → Back up**, send the file to the other device (AirDrop, Drive, email…), then **Restore** there. Everything attaches to the same book automatically, even if you add the book after restoring.
@@ -110,6 +123,8 @@ No build step: it's plain ES modules served as static files.
 | `js/flow.js` | The text reader for every other format (wraps foliate-js) |
 | `js/formats.js` | Detecting formats and locked books; Word/text/Markdown/HTML → book |
 | `js/fonts.js` | The reading fonts offered in the text reader (files in `vendor/fonts`) |
+| `js/store.js` | The Free classics screen (reads `library/catalog.json`, downloads books) |
+| `tools/make-library.py` | Builds `library/` from Gutenberg EPUBs listed in `tools/library-books.csv` |
 | `js/db.js` | IndexedDB (v2: books, files, bookmarks, albums) |
 | `js/ui.js`, `js/settings.js`, `js/pdf.js` | Shared helpers, settings/theme, pdf.js setup |
 | `sw.js`, `manifest.webmanifest` | Offline cache, Android share target |

@@ -1,1 +1,4 @@
 tools/.fonts/
+# Built by tools/make-library.py; upload it to the web host, not to git
+library/
+tools/.gutenberg-cache/

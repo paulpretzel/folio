@@ -63,7 +63,7 @@ export async function openFlow({ data, format, fileName, container, start, dir, 
   // foliate re-lays out the page whenever its box resizes, even while a chapter's frame is between
   // documents (it then throws); skip those moments, the chapter lays itself out once it has loaded.
   const render = r.render.bind(r);
-  r.render = () => { if (r.getContents()[0]?.doc?.documentElement) render(); };
+  r.render = () => { const doc = r.getContents()[0]?.doc; if (doc?.documentElement && doc.body) render(); };
 
   const total = pageCountOf(book);
   let loc = null;

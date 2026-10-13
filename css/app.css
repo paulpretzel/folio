@@ -579,3 +579,32 @@ body.touring #book-grid .more { pointer-events: none; }     /* only the cover op
 @keyframes tour-tap { 0%, 30%, 100% { scale: 1; } 12% { scale: .78; } }
 @keyframes tour-ripple { 0% { opacity: .8; scale: 1; } 40%, 100% { opacity: 0; scale: 1.9; } }
 @keyframes tour-edge { 0%, 100% { scale: 1; } 50% { scale: 1.12; } }
+
+/* Free classics */
+.store-card { width: min(720px, 100%); max-height: min(92vh, 900px); }
+.store-intro { margin: 0 0 12px; line-height: 1.45; }
+.store-shelves { margin-top: 14px; min-height: 120px; }
+.store-shelf { margin-bottom: 18px; }
+.store-shelf h4 { font-family: var(--serif); font-size: 18px; margin-bottom: 8px; }
+.store-row {
+  display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+  margin: 0 -20px; padding: 4px 20px 8px; scroll-padding: 0 20px;
+}
+.store-row::-webkit-scrollbar { display: none; }
+.store-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 14px; }
+.store-item { flex: none; width: 104px; text-align: left; scroll-snap-align: start; display: flex; flex-direction: column; align-self: flex-start; }
+.store-grid .store-item { width: auto; }
+.store-item .cover { width: 100%; }
+.store-title { display: block; margin-top: 7px; font-weight: 600; font-size: 13.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.store-author { display: flex; align-items: center; gap: 3px; font-size: 12.5px; color: var(--muted); margin-top: 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.store-author svg { width: 14px; height: 14px; flex: none; color: var(--accent); }
+.store-msg { text-align: center; padding: 28px 8px; line-height: 1.5; }
+.store-more { border-bottom: 0; border-top: 1px solid var(--line); }
+.store-book-top { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 12px; }
+.store-book-top .cover { width: 96px; flex: none; }
+.store-book-top h3 { margin: 2px 0 4px; }
+.store-book-top p { margin: 0 0 4px; }
+#store-book-blurb { line-height: 1.5; margin: 0; }
+#store-book-blurb:empty { display: none; }
+#store-book { z-index: 61; }
+.empty .btn + .btn { margin-top: 10px; }
