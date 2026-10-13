@@ -19,6 +19,7 @@ const SHELL = [
   'js/flow.js',
   'js/fonts.js',
   'js/store.js',
+  'js/addbooks.js',
   'samples/welcome-to-folio.pdf',
   'manifest.webmanifest',
   'icons/icon-192.png',
