@@ -48,9 +48,10 @@ function readerCss(fixed) {
  * hooks: onRelocate(loc) on every page turn · onTap({x, y}) for taps that aren't on a link ·
  *        onKey(event) for key presses inside the book · onWheel(event)
  */
-export async function openFlow({ data, format, fileName, container, start, hooks }) {
+export async function openFlow({ data, format, fileName, container, start, dir, hooks }) {
   const blob = new Blob([data]);
   const book = await openEbookFile(blob, format, fileName);
+  if (dir) book.dir = dir;                               // the reader chose a direction for this book
   const view = document.createElement('foliate-view');
   container.append(view);
   try { await view.open(book); } catch (e) { view.remove(); throw e; }
@@ -68,6 +69,8 @@ export async function openFlow({ data, format, fileName, container, start, hooks
   let loc = null;
 
   view.addEventListener('load', ({ detail: { doc } }) => {
+    // foliate reads the direction from each chapter's document as it loads it, so set it there.
+    if (dir) { doc.documentElement.dir = dir; if (doc.body) doc.body.dir = dir; }
     const frame = doc.defaultView?.frameElement;
     doc.addEventListener('click', (e) => {
       if (e.defaultPrevented || e.target.closest?.('a[href]')) return;
@@ -101,8 +104,9 @@ export async function openFlow({ data, format, fileName, container, start, hooks
     hooks.onRelocate?.(loc);
   });
 
+  const rtl = dir ? dir === 'rtl' : book.dir === 'rtl' || view.language?.direction === 'rtl';
   const ctl = {
-    view, book, fixed, total,
+    view, book, fixed, total, rtl,
     get loc() { return loc; },
     toc: fixed ? [] : flattenToc(book.toc || []),       // a comic's "contents" would just be its image file names
     applyStyles() {

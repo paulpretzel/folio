@@ -356,6 +356,7 @@ h1, h2, h3, h4 { margin: 0; }
 
 input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; margin: 0; }
 input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%)); }
+input[type=range][dir=rtl]::-webkit-slider-runnable-track { background: linear-gradient(to left, var(--accent) var(--fill, 0%), var(--line) var(--fill, 0%)); }
 input[type=range]::-moz-range-track { height: 4px; border-radius: 4px; background: var(--line); }
 input[type=range]::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--accent); }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 4px rgb(0 0 0 / .25); }

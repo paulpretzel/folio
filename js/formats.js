@@ -308,6 +308,10 @@ export function htmlBook({ html, title = '', author = '', styles = '', fileName 
     }
   }
   const body = doc.body;
+  // Mostly Hebrew, Arabic or another right-to-left script? Then the book reads right to left.
+  const sample = body.textContent.slice(0, 20000);
+  const letters = (sample.match(/\p{L}/gu) || []).length;
+  const rtl = letters > 40 && (sample.match(/[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/g) || []).length / letters > 0.3;
 
   // Split at the highest heading level that appears more than once (a chapter level).
   const level = ['h1', 'h2', 'h3'].find((h) => body.querySelectorAll(`:scope > ${h}`).length >= 2);
@@ -335,7 +339,7 @@ export function htmlBook({ html, title = '', author = '', styles = '', fileName 
       const label = h.textContent.replace(/\s+/g, ' ').trim();
       if (label) toc.push({ label: label.slice(0, 120), href: `${index}#${h.id}`, depth });
     }
-    const markup = `<!DOCTYPE html><html><head><meta charset="utf-8"><title></title><style>${BASE_CSS}${styles}</style></head><body>${holder.innerHTML}</body></html>`;
+    const markup = `<!DOCTYPE html><html${rtl ? ' dir="rtl"' : ''}><head><meta charset="utf-8"><title></title><style>${BASE_CSS}${styles}</style></head><body>${holder.innerHTML}</body></html>`;
     let url = null;
     return {
       id: String(index),
@@ -361,7 +365,7 @@ export function htmlBook({ html, title = '', author = '', styles = '', fileName 
     metadata: { title, author },
     sections,
     toc: nested,
-    dir: 'ltr',
+    dir: rtl ? 'rtl' : 'ltr',
     rendition: {},
     isExternal: (href) => /^[a-z][a-z0-9+.-]*:/i.test(href),
     splitTOCHref: (href) => { const [s, f] = String(href ?? '').split('#'); return [s, f || null]; },
