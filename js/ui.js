@@ -117,6 +117,11 @@ export function promptDialog({ title, value = '', placeholder = '', multiline = 
   });
 }
 export const confirmDialog = (opts) => promptDialog({ ...opts, noInput: true });
+/** A message with just an OK button. */
+export function infoDialog({ title, message }) {
+  $('#dialog-cancel').hidden = true;
+  return promptDialog({ title, message, noInput: true, okText: 'OK' }).finally(() => { $('#dialog-cancel').hidden = false; });
+}
 
 /** Bottom sheet menu. Actions: { label, icon, danger, check, sub, run } */
 export function actionSheet(title, actions) {

@@ -3,8 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <!-- Books are shown in frames on this origin; this stops any script inside an EPUB or web page from running. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' blob: data:; font-src 'self' blob: data:; media-src 'self' blob: data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self' blob:; object-src 'none'; base-uri 'self'">
   <title>Folio</title>
-  <meta name="description" content="A private, offline PDF book reader. Turn pages sideways, keep your books in albums.">
+  <meta name="description" content="A private, offline book reader for PDF, EPUB, Kindle and Word files. Turn pages sideways, keep your books in albums.">
   <meta name="theme-color" content="#f6f3ee" id="theme-color">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -87,8 +89,8 @@
       <div id="empty" class="empty" hidden>
         <div class="empty-art"><svg><use href="#i-book"/></svg></div>
         <h2>Your shelf is empty</h2>
-        <p class="muted">Add a PDF from your Files app, Drive, or downloads. Folio reads what each one is and helps you keep them in albums. Everything stays on this device and works offline.</p>
-        <button class="btn primary big" id="empty-add-btn"><svg><use href="#i-upload"/></svg><span>Add a PDF</span></button>
+        <p class="muted">Add a book from your Files app, Drive, or downloads: PDF, EPUB, Kindle, Word and text files all work. Folio reads what each one is and helps you keep them in albums. Everything stays on this device and works offline.</p>
+        <button class="btn primary big" id="empty-add-btn"><svg><use href="#i-upload"/></svg><span>Add a book</span></button>
       </div>
     </div>
 
@@ -99,7 +101,7 @@
       <button class="btn danger-soft" id="sel-remove" data-needs-pick><svg><use href="#i-trash"/></svg><span>Remove</span></button>
     </div>
 
-    <input type="file" id="file-input" accept="application/pdf,.pdf" multiple hidden>
+    <input type="file" id="file-input" multiple hidden>
     <input type="file" id="restore-input" accept="application/json,.json" hidden>
   </section>
 
@@ -122,6 +124,7 @@
     <main id="stage" class="stage" tabindex="-1" aria-label="Book pages">
       <div id="track" class="track"></div>
     </main>
+    <main id="flow-stage" class="flow-stage" aria-label="Book pages" hidden></main>
 
     <button class="edge-nav prev" id="nav-prev" aria-label="Previous page"><svg><use href="#i-back"/></svg></button>
     <button class="edge-nav next" id="nav-next" aria-label="Next page"><svg><use href="#i-next"/></svg></button>
@@ -185,7 +188,31 @@
             <button data-layout="double">Spread</button>
           </div>
         </div>
-        <div class="sheet-row">
+        <div class="sheet-row flow-only">
+          <span class="label">Text size</span>
+          <div class="zoom-ctl">
+            <button class="icon-btn" id="text-smaller" aria-label="Smaller text"><svg><use href="#i-minus"/></svg></button>
+            <span id="text-size-label">100%</span>
+            <button class="icon-btn" id="text-bigger" aria-label="Bigger text"><svg><use href="#i-plus"/></svg></button>
+          </div>
+        </div>
+        <div class="sheet-row flow-only">
+          <span class="label">Font</span>
+          <div class="segmented" id="font-seg">
+            <button data-font="book">Book’s own</button>
+            <button data-font="serif">Serif</button>
+            <button data-font="sans">Sans</button>
+          </div>
+        </div>
+        <div class="sheet-row flow-only">
+          <span class="label">Line spacing</span>
+          <div class="segmented" id="spacing-seg">
+            <button data-spacing="1.3">Tight</button>
+            <button data-spacing="1.5">Normal</button>
+            <button data-spacing="1.8">Loose</button>
+          </div>
+        </div>
+        <div class="sheet-row pdf-only">
           <span class="label">Zoom</span>
           <div class="zoom-ctl">
             <button class="icon-btn" id="zoom-out" aria-label="Zoom out"><svg><use href="#i-minus"/></svg></button>
@@ -194,7 +221,7 @@
             <button class="btn ghost small" id="zoom-fit"><svg><use href="#i-fit"/></svg><span>Fit</span></button>
           </div>
         </div>
-        <label class="sheet-row toggle"><span class="label">Dark pages in dark theme</span><input type="checkbox" id="opt-invert"><span class="switch"></span></label>
+        <label class="sheet-row toggle pdf-only"><span class="label">Dark pages in dark theme</span><input type="checkbox" id="opt-invert"><span class="switch"></span></label>
         <label class="sheet-row toggle"><span class="label">Tap left / right edge to turn page</span><input type="checkbox" id="opt-tapturn"><span class="switch"></span></label>
         <label class="sheet-row toggle"><span class="label">Hide bars when turning pages</span><input type="checkbox" id="opt-autohide"><span class="switch"></span></label>
         <label class="sheet-row toggle"><span class="label">Keep screen on while reading</span><input type="checkbox" id="opt-awake"><span class="switch"></span></label>
@@ -239,7 +266,7 @@
       </div>
       <div class="sheet-section">
         <h4>Backup</h4>
-        <p class="muted small">Saves your albums, bookmarks and reading positions (not the PDFs) to a small file. Restore it on any device; everything attaches to the same PDF when you add it there.</p>
+        <p class="muted small">Saves your albums, bookmarks and reading positions (not the books themselves) to a small file. Restore it on any device; everything attaches to the same book when you add it there.</p>
         <div class="btn-row">
           <button class="btn" id="backup-btn"><svg><use href="#i-download"/></svg><span>Back up</span></button>
           <button class="btn" id="restore-btn"><svg><use href="#i-upload"/></svg><span>Restore</span></button>

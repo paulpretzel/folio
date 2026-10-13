@@ -1,5 +1,5 @@
-// Folio service worker: makes the app work offline and receives PDFs shared from other apps.
-const VERSION = 'folio-v7';
+// Folio service worker: makes the app work offline and receives books shared from other apps.
+const VERSION = 'folio-v8';
 const SHARE_CACHE = 'folio-share';       // PDFs waiting to be imported; never cleaned up by activate
 const SHELL = [
   './',
@@ -14,6 +14,8 @@ const SHELL = [
   'js/library.js',
   'js/reader.js',
   'js/tour.js',
+  'js/formats.js',
+  'js/flow.js',
   'samples/welcome-to-folio.pdf',
   'manifest.webmanifest',
   'icons/icon-192.png',
@@ -21,6 +23,22 @@ const SHELL = [
   'icons/apple-touch-icon.png',
   'vendor/pdfjs/pdf.min.mjs',
   'vendor/pdfjs/pdf.worker.min.mjs',
+  // the text reader (EPUB, Kindle, FB2, comics) and the Word converter, so they open offline too
+  'vendor/foliate/view.js',
+  'vendor/foliate/epub.js',
+  'vendor/foliate/epubcfi.js',
+  'vendor/foliate/paginator.js',
+  'vendor/foliate/fixed-layout.js',
+  'vendor/foliate/mobi.js',
+  'vendor/foliate/fb2.js',
+  'vendor/foliate/comic-book.js',
+  'vendor/foliate/progress.js',
+  'vendor/foliate/overlayer.js',
+  'vendor/foliate/text-walker.js',
+  'vendor/foliate/search.js',
+  'vendor/foliate/vendor/zip.js',
+  'vendor/foliate/vendor/fflate.js',
+  'vendor/mammoth/mammoth.browser.min.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,18 +53,18 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// "Share → Folio" from Android's share sheet POSTs the PDFs here (see share_target in the manifest).
+// "Share → Folio" from Android's share sheet POSTs the books here (see share_target in the manifest).
 // Stash them and reload the app, which imports and identifies them like any other new book.
 async function receiveShare(req) {
   const home = new URL('./', self.registration.scope);
   try {
     const form = await req.formData();
-    const files = form.getAll('pdfs').filter((f) => f && typeof f !== 'string' && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)));
+    const files = form.getAll('pdfs').filter((f) => f && typeof f !== 'string');
     const cache = await caches.open(SHARE_CACHE);
     const stamp = Date.now();
     await Promise.all(files.map((f, i) => cache.put(
       new URL(`shared/${stamp}-${i}`, home).href,
-      new Response(f, { headers: { 'Content-Type': 'application/pdf', 'X-Filename': encodeURIComponent(f.name || 'shared.pdf') } })
+      new Response(f, { headers: { 'Content-Type': f.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(f.name || 'shared') } })
     )));
     return Response.redirect(new URL(`./?shared=${files.length}`, home).href, 303);
   } catch (e) {

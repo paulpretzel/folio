@@ -1,6 +1,6 @@
-# Folio — PDF book reader for iPad & Android
+# Folio — book reader for iPad & Android
 
-A private, offline reading app. Turn pages sideways like a book, keep your PDFs sorted into albums, and pick up exactly where you left off. Your books, bookmarks and reading position stay on each device.
+A private, offline reading app for PDF, EPUB, Kindle and Word books. Turn pages sideways like a book, keep your books sorted into albums, and pick up exactly where you left off. Your books, bookmarks and reading position stay on each device.
 
 ## 1. Put it online (one time, ~5 minutes, from a computer)
 
@@ -35,11 +35,26 @@ The first time Folio opens with an empty shelf, it offers a quick tour that walk
 
 The guide PDF is built by `tools/make-sample-book.py` (needs `pip install reportlab`; it downloads the Source Serif 4 fonts into `tools/.fonts` and embeds them). Edit the text there and re-run it from the repo root to change it; if you reorder or retitle pages, update `STEPS` in `js/tour.js` to match.
 
+## Book formats
+
+| Format | How it reads |
+| --- | --- |
+| **PDF** | Page by page, exactly as printed, with zoom |
+| **EPUB** (2 and 3), **Kindle** (MOBI, AZW3, AZW), **FB2** | Text that re-flows to the screen, with your choice of text size, font and line spacing |
+| **Word** (.docx), **text** (.txt), **Markdown** (.md), **web pages** (.html) | Converted on the device into a re-flowing book, split into chapters at its headings |
+| **Comics** (CBZ) | One image per page |
+
+Re-flowing books count pages in steps of about 1,500 characters, so "page 41" stays the same place whatever the text size or screen, and bookmarks and backups keep working across devices.
+
+**Books locked by a store can't be opened.** Books bought from Amazon, Apple Books, Google Play Books or Kobo, and library loans, are copy-protected (DRM) and only open in their own apps. Folio recognises them and says so; it never tries to unlock them. The same goes for `.acsm` files (Adobe download tickets), the newer KFX Kindle format, and older formats like `.doc`, `.rtf` and `.odt` (save those as `.docx` or PDF first).
+
+Scripts inside EPUBs and web pages never run: the app's content security policy blocks them.
+
 ## Adding books (and what Folio does with them)
 
-- **Add book:** tap *Add book* and pick PDFs from Files, Drive or Downloads. You can pick several at once, or drag PDFs onto the window on a computer.
-- **Share to Folio (Android):** after installing from Chrome, open a downloaded PDF in Files/Downloads/Gmail → **Share → Folio**. It's added straight away. (iPad Safari doesn't offer this, so use *Add book* there. If you installed Folio before this version, Android may need a day to notice the new Share option, or remove and reinstall the app.)
-- **It reads each PDF for you.** Folio looks inside every new PDF, on your device only, and works out:
+- **Add book:** tap *Add book* and pick books from Files, Drive or Downloads. You can pick several at once, or drag them onto the window on a computer.
+- **Share to Folio (Android):** after installing from Chrome, open a downloaded book in Files/Downloads/Gmail → **Share → Folio**. It's added straight away. (iPad Safari doesn't offer this, so use *Add book* there. If you installed Folio before this version, Android may need a day to notice the new Share option, or remove and reinstall the app.)
+- **It reads each book for you.** EPUB and Kindle files carry their own title, author and cover. For PDFs, Folio looks inside every new one, on your device only, and works out:
   - the **title and author** (from the file's info, or the biggest text on the cover, or a cleaned-up file name),
   - the **ISBN** and copyright year, if it has them,
   - whether it's a **scan** (no selectable text),
@@ -64,12 +79,12 @@ The guide PDF is built by `tools/make-sample-book.py` (needs `pip install report
 - **Bookmark:** tap the ribbon at the top right (or press **B**).
 - **Contents / Bookmarks / Search:** the list button opens the side panel.
 - **Jump anywhere:** drag the slider at the bottom (it previews the chapter), or tap "Page X of Y" to type a page number. After any jump, a **Back to page N** button takes you back.
-- **Tт menu:** Auto/Light/Sepia/Dark theme, single/spread layout, zoom, dark pages in dark mode, tap-the-edge page turning, hide-the-bars, keep the screen awake.
+- **Tт menu:** Auto/Light/Sepia/Dark theme, single/spread layout, zoom, dark pages in dark mode, tap-the-edge page turning, hide-the-bars, keep the screen awake. In re-flowing books (EPUB, Kindle, Word…) zoom is replaced by **text size**, **font** and **line spacing**, and **Ctrl/⌘ +/−/0** change the text size.
 - **It remembers your spot:** your position is saved continuously. If you close the app while reading, it reopens straight to that page (you can turn this off in Library → settings).
 
 ## Moving your library setup between devices
 
-Each device is separate. To copy your albums, bookmarks and reading positions: **Library → settings (sliders icon) → Back up**, send the file to the other device (AirDrop, Drive, email…), then **Restore** there. Everything attaches to the same PDF automatically, even if you add the book after restoring.
+Each device is separate. To copy your albums, bookmarks and reading positions: **Library → settings (sliders icon) → Back up**, send the file to the other device (AirDrop, Drive, email…), then **Restore** there. Everything attaches to the same book automatically, even if you add the book after restoring.
 
 ## Good to know
 
@@ -77,7 +92,7 @@ Each device is separate. To copy your albums, bookmarks and reading positions: *
 - Everything works **offline** after the first launch.
 - The Library settings show how much storage the app uses on the device.
 - **Highlights and notes were removed** in this version. If an older version of Folio saved any on your device, they are left untouched in the app's storage (nothing is deleted), they just aren't shown or exported any more. Backups made by older versions restore fine; their highlights are ignored.
-- PDF rendering uses Mozilla's pdf.js (Apache-2.0 license, included in `vendor/pdfjs`).
+- PDF rendering uses Mozilla's pdf.js (Apache-2.0 license, included in `vendor/pdfjs`). EPUB, Kindle, FB2 and comic books use [foliate-js](https://github.com/johnfactotum/foliate-js) (MIT, `vendor/foliate`), and Word files are converted with [mammoth.js](https://github.com/mwilliamson/mammoth.js) (BSD-2-Clause, `vendor/mammoth`). Both are unmodified copies; `VERSION` in each folder says which.
 
 ## For developers
 
@@ -89,7 +104,9 @@ No build step: it's plain ES modules served as static files.
 | `js/app.js` | Boot, shared-file intake |
 | `js/library.js` | Library, albums, import, review sheet, backup/restore |
 | `js/identify.js` | Offline PDF identification (title, author, ISBN, scan?, kind) |
-| `js/reader.js` | The paged reader: gestures, spreads, zoom, search, contents |
+| `js/reader.js` | The reader: bars, contents, bookmarks, search; pages, gestures, spreads and zoom for PDFs |
+| `js/flow.js` | The text reader for every other format (wraps foliate-js) |
+| `js/formats.js` | Detecting formats and locked books; Word/text/Markdown/HTML → book |
 | `js/db.js` | IndexedDB (v2: books, files, bookmarks, albums) |
 | `js/ui.js`, `js/settings.js`, `js/pdf.js` | Shared helpers, settings/theme, pdf.js setup |
 | `sw.js`, `manifest.webmanifest` | Offline cache, Android share target |
