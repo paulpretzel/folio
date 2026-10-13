@@ -42,7 +42,7 @@ function freshState() {
     chromeHidden: false, backJump: null, backLanding: 0,
     saveTimer: 0, readTimer: 0, hiTimer: 0, tapTimer: 0, glideRaf: 0, lastActivity: Date.now(), wake: null,
     anim: null, lastTap: null, wheelAcc: 0, wheelAt: 0, wheelLock: 0,
-    insetFrac: 0, hiBusy: false, hiAgain: false,
+    hiBusy: false, hiAgain: false, atRest: true, inkByPage: new Map(), inkVer: 0, typical: [],
     searchToken: 0, tab: 'toc', scrubbing: false,
   };
 }
@@ -106,6 +106,8 @@ export async function openBook(id) {
   await curSlide().ready;
   if (gen !== R.gen) return;
   updateUI(true);
+  syncFitText();
+  showRest();
   ensureText(curSlide());
   $('#loading').hidden = true;
   stage.focus({ preventScroll: true });
@@ -251,6 +253,7 @@ async function layoutSlide(s) {
   if (gen !== R.gen || R.mounted.get(s.idx) !== s) return;
   layoutSlideSync(s, sizes);
   pump();
+  refit();
 }
 
 function layoutSlideSync(s, sizes) {
@@ -273,6 +276,7 @@ function layoutSlideSync(s, sizes) {
     x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + p.wpx); y1 = Math.max(y1, p.y + p.hpx);
   });
   s.box = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  s.fit = null;
   s.laidOut = true;
 }
 
@@ -292,6 +296,7 @@ function relayoutAll() {
   }
   ensureWindow();
   updateUI(true);
+  showRest();
   ensureText(curSlide());
 }
 let resizeTimer;
@@ -347,6 +352,7 @@ async function renderBase(p, gen) {
     p.canvas = canvas;
     p.renderedScale = scale;
     p.el.classList.add('rendered');
+    if (measureInk(p)) refit();
   } catch (err) {
     if (err?.name !== 'RenderingCancelledException') p.renderedScale = scale;   // don't retry a broken page forever
     throw err;
@@ -416,7 +422,7 @@ const covers = (h, z, x0, y0, x1, y1) => h && h.z >= z * 0.97 && x0 >= h.x0 - 0.
    happens meanwhile is picked up straight away:
    1. exactly what's on screen (smallest, so it's quickest to appear),
    2. a margin around it, mostly below, where you read next,
-   3. where the next page will open, so it slides in already sharp. */
+   3. the next page at fit-text size, so it slides in already sharp. */
 async function renderHi() {
   clearTimeout(R.hiTimer);
   R.hiTimer = 0;
@@ -428,9 +434,9 @@ async function renderHi() {
       const s = pass === 2 ? R.mounted.get(R.cur + 1) : curSlide();
       if (!s?.laidOut || gen !== R.gen || R.hiAgain) return;
       if (R.zoom < 1.12) { if (pass === 0) s.pages.forEach(clearHi); return; }
-      const z = R.zoom;
-      let tx = R.tx, ty = R.ty;
-      if (pass === 2) [tx, ty] = landing(s, 1, z);
+      let z = R.zoom, tx = R.tx, ty = R.ty;
+      if (pass === 2) ({ z, tx, ty } = restView(s, true));
+      if (z < 1.12) return;
       const view = [-tx / z, -ty / z, (R.vw - tx) / z, (R.vh - ty) / z];
       const w = view[2] - view[0], h = view[3] - view[1];
       for (const p of s.pages) {
@@ -450,7 +456,7 @@ async function renderHi() {
         if (covers(p.hiInfo, z, ...r)) continue;
         if (pass === 1 && !covers(p.hiInfo, z, ...vis)) continue;     // the view moved on: redo step 1 first
         await drawHi(p, gen, z, ...r);
-        if (gen !== R.gen || R.hiAgain || R.zoom !== z) return;
+        if (gen !== R.gen || R.hiAgain || (pass < 2 && R.zoom !== z)) return;
       }
     }
   } catch (e) {
@@ -487,7 +493,7 @@ async function drawHi(p, gen, z, x0, y0, x1, y1) {
   try { await task.promise; }
   catch (e) { canvas.width = canvas.height = 0; if (e?.name === 'RenderingCancelledException') return; throw e; }
   finally { if (p.hiTask === task) p.hiTask = null; }
-  if (gen !== R.gen || p.dead || R.zoom < 1.05) { canvas.width = canvas.height = 0; return; }
+  if (gen !== R.gen || p.dead || z < 1.05) { canvas.width = canvas.height = 0; return; }
   canvas.style.cssText = `left:${ox / out}px;top:${oy / out}px;width:${w / out}px;height:${h / out}px`;
   p.paper.append(canvas);
   if (p.hi) { p.hi.width = p.hi.height = 0; p.hi.remove(); }
@@ -504,131 +510,179 @@ function axisBounds(start, size, view, z) {
   if (size * z <= view - 2 * m) { const c = (start + size / 2) * (1 - z); return [c, c]; }   // fits: stays centred
   return [view - m - (start + size) * z, m - start * z];
 }
-function clampPan(tx, ty, z = R.zoom) {
-  const b = curSlide()?.box;
+function clampPan(tx, ty, z = R.zoom, s = curSlide()) {
+  const b = s?.box;
   if (!b) return [0, 0];
   const [x0, x1] = axisBounds(b.x, b.w, R.vw, z), [y0, y1] = axisBounds(b.y, b.h, R.vh, z);
   return [clamp(tx, x0, x1), clamp(ty, y0, y1)];
 }
+const xform = (z, tx, ty) => z === 1 && !tx && !ty ? '' : `translate3d(${tx}px,${ty}px,0) scale(${z})`;
 function applyTransform(anim = false) {
   const s = curSlide();
   if (!s) return;
   s.zoomer.style.transition = anim && !reducedMotion.matches ? 'transform .26s cubic-bezier(.2,.8,.2,1)' : 'none';
-  s.zoomer.style.transform = R.zoom === 1 && !R.tx && !R.ty ? '' : `translate3d(${R.tx}px,${R.ty}px,0) scale(${R.zoom})`;
+  s.zoomer.style.transform = xform(R.zoom, R.tx, R.ty);
   $('#zoom-label').textContent = Math.round(R.zoom * 100) + '%';
-  stage.classList.toggle('zoomed', R.zoom > 1.02);
+  stage.classList.toggle('zoomed', zoomedIn());
 }
 function zoomTo(z, fx = R.vw / 2, fy = R.vh / 2, anim = true) {
   z = clamp(z, 1, MAX_ZOOM);
   const k = z / R.zoom;
   R.zoom = z;
+  R.atRest = false;
   [R.tx, R.ty] = clampPan(fx - (fx - R.tx) * k, fy - (fy - R.ty) * k, z);
   applyTransform(anim);
   if (z < 1.12) for (const m of R.mounted.values()) m.pages.forEach(clearHi);
   else scheduleHi(0);
-  learnInset();
-  emit('zoom', { zoom: z });
+  emitZoom();
 }
-function resetZoom(keep = null) {
+const emitZoom = () => emit('zoom', { zoom: R.zoom, zoomedIn: zoomedIn() });
+function resetZoom() {
   cancelAnimationFrame(R.glideRaf);
-  R.zoom = 1; R.tx = R.ty = 0;
+  R.zoom = 1; R.tx = R.ty = 0; R.atRest = true;
   for (const s of R.mounted.values()) {
     s.zoomer.style.transition = 'none';
     s.zoomer.style.transform = '';
-    if (s !== keep) s.pages.forEach(clearHi);
   }
   stage.classList.remove('zoomed');
   $('#zoom-label').textContent = '100%';
 }
 $('#zoom-in').onclick = () => zoomTo(R.zoom * 1.3);
 $('#zoom-out').onclick = () => zoomTo(R.zoom / 1.3);
-$('#zoom-fit').onclick = () => zoomTo(1);
+$('#zoom-fit').onclick = () => goRest();
 
-/* Zoomed reading.
+/* Fit text.
  *
- * Turning a page keeps the zoom. Going forward the new page opens at its top
- * left, going back at its bottom right, like reading on.
+ * Once a page is drawn, Folio looks at where the ink is. With Fit text on, each
+ * page rests zoomed so its text fills the screen and the blank margins are
+ * trimmed off, and pages swipe and tap over just as they do at full size.
+ * The margins come from the book's typical page on the same side (left and
+ * right pages differ in print), widened where needed to keep everything on
+ * this page, so the size stays steady from page to page.
  *
- * Tapping the screen edges (or Space / Page Up / Page Down) while zoomed moves
- * one screen at a time in reading order: down the page, then to the top of the
- * next column (or the right-hand page of a spread), then on to the next page.
- *
- * "Columns" are the screen-wide strips a page is read in. They keep the margin
- * you zoomed past (insetFrac, learnt from where you put the view), so a page
- * zoomed to its text opens zoomed to its text, not to the blank margin. */
-const READ_OVERLAP = 0.1;       // each step keeps this much of the last screen in view
+ * Zoom in past that and you can pan around. Turning the page from there (edge
+ * tap, Space, a push past the page edge) opens the next page at fit-text size,
+ * and switches Fit text on. Zooming out fully, or the Fit text button, goes
+ * back to whole pages. */
+const INK_W = 320;              // width the page is sampled at to find its ink
 
-function learnInset(s = curSlide(), z = R.zoom) {
-  if (!s?.laidOut || z <= 1.02) return;
-  const b = s.box, [x0, x1] = axisBounds(b.x, b.w, R.vw, z);
-  if (R.tx <= x0 + 2 || R.tx >= x1 - 2) return;          // pushed against an edge (about to swipe on?): not a choice of margin
-  const L = -R.tx, Rt = L + R.vw;
-  for (const p of s.pages) {
-    const a = p.x * z, e = (p.x + p.wpx) * z;
-    if (e - a > R.vw && L >= a - 1 && Rt <= e + 1) { R.insetFrac = Math.max(0, Math.min(L - a, e - Rt)) / (e - a); return; }
-  }
-}
-/** The horizontal stops (tx values) for reading slide s, in reading order. */
-function columns(s, z = R.zoom) {
-  const b = s.box, [x0, x1] = axisBounds(b.x, b.w, R.vw, z);
-  if (x1 - x0 < 2) return [x0];
-  const step = R.vw * (1 - READ_OVERLAP), stops = [];
-  for (const p of s.pages) {
-    const W = p.wpx * z, inset = Math.min(R.insetFrac * W, W / 2);
-    const a = p.x * z + inset, e = (p.x + p.wpx) * z - inset;
-    if (e - a <= R.vw) { stops.push((a + e - R.vw) / 2); continue; }
-    for (let L = a; ; L += step) {
-      if (L + R.vw >= e - 1) { stops.push(e - R.vw); break; }
-      stops.push(L);
+function measureInk(p) {
+  if (!p.canvas || R.inkByPage.has(p.num)) return false;
+  const c = p.canvas, w = INK_W, h = Math.max(1, Math.round(w * c.height / c.width));
+  const tmp = document.createElement('canvas');
+  tmp.width = w; tmp.height = h;
+  const ctx = tmp.getContext('2d', { willReadFrequently: true });
+  let data;
+  try { ctx.drawImage(c, 0, 0, w, h); data = ctx.getImageData(0, 0, w, h).data; } catch { return false; }
+  finally { tmp.width = tmp.height = 0; }
+  const rows = new Uint16Array(h), cols = new Uint16Array(w);
+  for (let y = 0, i = 0; y < h; y++) {
+    for (let x = 0; x < w; x++, i += 4) {
+      if (data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11 < 215) { rows[y]++; cols[x]++; }
     }
   }
-  const out = [];
-  for (const L of stops) {
-    const t = clamp(-L, x0, x1);
-    if (!out.length || Math.abs(out[out.length - 1] - t) > 4) out.push(t);
+  const first = (a) => a.findIndex((n) => n >= 2), last = (a) => a.findLastIndex((n) => n >= 2);
+  const x0 = first(cols), y0 = first(rows);
+  R.inkByPage.set(p.num, x0 < 0 || y0 < 0 ? null : { x0: x0 / w, y0: y0 / h, x1: (last(cols) + 1) / w, y1: (last(rows) + 1) / h });
+  R.inkVer++;
+  return true;
+}
+/** The typical inked area of pages on the same side as page n (the median of each edge). */
+function typicalInk(n) {
+  const par = n % 2;
+  if (R.typical[par]?.ver === R.inkVer) return R.typical[par].box;
+  const all = [...R.inkByPage].filter(([k, b]) => b && k % 2 === par).map(([, b]) => b);
+  const med = (k) => all.map((b) => b[k]).sort((a, b) => a - b)[all.length >> 1];
+  const box = all.length ? { x0: med('x0'), y0: med('y0'), x1: med('x1'), y1: med('y1') } : null;
+  R.typical[par] = { ver: R.inkVer, box };
+  return box;
+}
+/** The part of page p to keep on screen, as fractions of the page. */
+function cropOf(p) {
+  const own = R.inkByPage.get(p.num), t = typicalInk(p.num);
+  const b = own && t ? { x0: Math.min(own.x0, t.x0), y0: Math.min(own.y0, t.y0), x1: Math.max(own.x1, t.x1), y1: Math.max(own.y1, t.y1) } : own || t;
+  if (!b) return { x0: 0, y0: 0, x1: 1, y1: 1 };
+  const m = 0.012;
+  return { x0: Math.max(0, b.x0 - m), y0: Math.max(0, b.y0 - m), x1: Math.min(1, b.x1 + m), y1: Math.min(1, b.y1 + m) };
+}
+/** Zoom and position that fit slide s's text to the screen. */
+function fitView(s) {
+  const key = `${R.inkVer}:${R.vw}x${R.vh}`;
+  if (s.fit?.key === key) return s.fit.view;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of s.pages) {
+    const c = cropOf(p);
+    x0 = Math.min(x0, p.x + c.x0 * p.wpx); y0 = Math.min(y0, p.y + c.y0 * p.hpx);
+    x1 = Math.max(x1, p.x + c.x1 * p.wpx); y1 = Math.max(y1, p.y + c.y1 * p.hpx);
   }
-  return out;
+  const { vw, vh, pad } = R, gap = 10;
+  const aw = vw - pad.l - pad.r - 2 * gap, ah = vh - pad.t - pad.b - 2 * gap;
+  const z = clamp(Math.min(aw / (x1 - x0), ah / (y1 - y0)), 1, MAX_ZOOM);
+  const cx = pad.l + (vw - pad.l - pad.r) / 2, cy = pad.t + (vh - pad.t - pad.b) / 2;
+  const [tx, ty] = clampPan(cx - (x0 + x1) / 2 * z, cy - (y0 + y1) / 2 * z, z, s);
+  const view = { z, tx, ty };
+  s.fit = { key, view };
+  return view;
 }
-function landing(s, dir, z = R.zoom) {
-  const b = s.box, [y0, y1] = axisBounds(b.y, b.h, R.vh, z);
-  const cols = columns(s, z);
-  return dir > 0 ? [cols[0], y1] : [cols[cols.length - 1], y0];
+const WHOLE = { z: 1, tx: 0, ty: 0 };
+/** Where slide s sits when you're not zoomed in: the whole page, or its text fitted to the screen. */
+function restView(s, fit = settings.fitText) {
+  return fit && s?.laidOut ? fitView(s) : WHOLE;
 }
-/** One screen on (dir 1) or back (dir -1) in reading order; past the end of the page, turn it. */
-function readingStep(dir) {
+/** Zoomed in past the resting size: drags pan instead of turning the page. */
+function zoomedIn() {
+  return R.zoom > restView(curSlide()).z * 1.03;
+}
+/** Settle the current page at its resting size. */
+function goRest(anim = true, quiet = false) {
   const s = curSlide();
-  if (!s?.laidOut || R.zoom <= 1.02) return turn(dir);
-  finishAnim();
+  if (!s) return;
   cancelAnimationFrame(R.glideRaf);
-  learnInset(s);
-  const b = s.box, [y0, y1] = axisBounds(b.y, b.h, R.vh, R.zoom);
-  let tx = R.tx, ty;
-  if (dir > 0 ? R.ty > y0 + 2 : R.ty < y1 - 2) {
-    ty = clamp(R.ty - dir * R.vh * (1 - READ_OVERLAP), y0, y1);   // further down (up) this column
-  } else {
-    const cols = columns(s);
-    const next = dir > 0 ? cols.find((c) => c < R.tx - 4) : cols.findLast((c) => c > R.tx + 4);
-    if (next === undefined) return turn(dir);
-    tx = next; ty = dir > 0 ? y1 : y0;
-  }
-  R.tx = tx; R.ty = ty;
-  applyTransform(true);
-  if (R.hiBusy) s.pages.forEach((p) => p.hiTask?.cancel());   // drop work for the screen you just left
-  renderHi();
-  R.lastActivity = Date.now();
+  const r = restView(s);
+  R.zoom = r.z; R.tx = r.tx; R.ty = r.ty; R.atRest = true;
+  applyTransform(anim);
+  if (r.z < 1.12) for (const m of R.mounted.values()) m.pages.forEach(clearHi);
+  else renderHi();
+  if (!quiet) emitZoom();
 }
-/** Pre-zoom the neighbouring slides so they slide in already at their landing spot. */
-function prepNeighbours() {
+/** Neighbouring pages wait at their resting size, so they slide in already there. */
+function prepNeighbours(fit = settings.fitText) {
   for (const dir of [-1, 1]) {
     const s = R.mounted.get(R.cur + dir);
     if (!s) continue;
+    const r = restView(s, fit);
     s.zoomer.style.transition = 'none';
-    if (R.zoom > 1.02 && s.laidOut) {
-      const [tx, ty] = landing(s, dir);
-      s.zoomer.style.transform = `translate3d(${tx}px,${ty}px,0) scale(${R.zoom})`;
-    } else s.zoomer.style.transform = '';
+    s.zoomer.style.transform = xform(r.z, r.tx, r.ty);
   }
 }
+/** A page's ink was just found (or a page was laid out): refit what's on screen if you're at rest. */
+function refit() {
+  if (!settings.fitText || !R.open) return;
+  if (R.atRest && !gest && !R.anim) {
+    const r = restView(curSlide());
+    if (Math.abs(r.z - R.zoom) > 0.005 || Math.abs(r.tx - R.tx) > 1 || Math.abs(r.ty - R.ty) > 1) goRest(true, true);
+  }
+  if (!R.anim && !(gest && gest.kind !== 'pending')) prepNeighbours();
+}
+function syncFitText() {
+  const b = $('#fittext-btn'), on = !!settings.fitText;
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', on);
+  b.setAttribute('aria-label', on ? 'Show whole pages' : 'Fit text to the screen');
+  $('#opt-fittext').checked = on;
+}
+function setFitText(on, settle = true) {
+  settings.fitText = on;
+  saveSettings();
+  syncFitText();
+  prepNeighbours();
+  if (settle) goRest();
+}
+$('#fittext-btn').onclick = () => {
+  setFitText(!settings.fitText);
+  toast(settings.fitText ? 'Fit text: margins trimmed' : 'Whole pages');
+};
+$('#opt-fittext').onchange = (e) => setFitText(e.target.checked);
 
 /* ================================================================
    Page turning
@@ -665,12 +719,17 @@ function settle(dir, from = 0) {
   return runAnim(from, to, clamp(Math.abs(to - from) / W * 360, 150, 360), () => commitTurn(target));
 }
 
+/** Turning while zoomed in: the next page opens at fit-text size. */
+function fitTextForZoomedTurn() {
+  if (zoomedIn() && !settings.fitText) setFitText(true, false);
+}
 function turn(dir) {
   if (!R.open) return;
   finishAnim();
   cancelAnimationFrame(R.glideRaf);
   const t = R.cur + dir;
   if (t < 0 || t >= R.slides.length) return bump(dir);
+  fitTextForZoomedTurn();
   prepNeighbours();
   settle(dir, 0);
 }
@@ -680,27 +739,21 @@ function bump(dir) {
 }
 
 function commitTurn(idx) {
-  const z = R.zoom > 1.02 ? R.zoom : 0, dir = Math.sign(idx - R.cur);
   R.cur = idx;
   setTrack(0);
-  resetZoom(curSlide());                                 // the new page keeps any sharp area drawn for it in advance
-  if (z) keepZoom(curSlide(), dir, z);
+  resetZoom();
+  showRest();
   clearHits();
   ensureWindow();
   afterNavigate();
   if (settings.autoHide && !R.chromeHidden) setChrome(false);
 }
-
-function keepZoom(s, dir, z) {
-  if (!s) return;
-  if (!s.laidOut) {                                      // still measuring: zoom in once it's laid out, unless you've moved on
-    s.ready?.then(() => { if (curSlide() === s && R.zoom === 1 && !gest && !R.anim) keepZoom(s, dir, z); });
-    return;
-  }
-  R.zoom = z;
-  [R.tx, R.ty] = landing(s, dir, z);
-  applyTransform(false);
-  renderHi();
+/** After landing on a page: put it at its resting size (once it's laid out). */
+function showRest() {
+  const s = curSlide();
+  if (!s || !settings.fitText) return;
+  if (s.laidOut) return goRest(false, true);
+  s.ready?.then(() => { if (curSlide() === s && R.atRest && !gest && !R.anim) goRest(false, true); });
 }
 
 /** Jump to any page with a quick fade instead of sliding through everything between. */
@@ -711,6 +764,7 @@ function jumpToSlide(idx) {
   R.cur = idx;
   clearHits();
   ensureWindow();
+  showRest();
   const s = curSlide();
   if (!reducedMotion.matches) { s.el.classList.remove('fade'); void s.el.offsetWidth; s.el.classList.add('fade'); }
   afterNavigate();
@@ -728,7 +782,7 @@ function goToPage(n, { record = true } = {}) {
   n = clamp(Math.round(n), 1, R.N);
   const idx = R.slideOf[n];
   if (record) { setBackJump(); R.backLanding = R.slides[idx][0]; }    // before jumping: afterNavigate() compares against it
-  if (idx === R.cur) { if (R.zoom > 1.02) zoomTo(1); }
+  if (idx === R.cur) { if (zoomedIn()) goRest(); }
   else jumpToSlide(idx);
 }
 
@@ -828,7 +882,7 @@ stage.addEventListener('pointerdown', (e) => {
     edgeL: false, edgeR: false, off: 0,
   };
   const b = curSlide()?.box;
-  if (b && R.zoom > 1.02) {                              // did the drag start already at a page edge?
+  if (b && zoomedIn()) {                                 // did the drag start already at a page edge?
     const [x0, x1] = axisBounds(b.x, b.w, R.vw, R.zoom);
     g.edgeR = R.tx <= x0 + 2; g.edgeL = R.tx >= x1 - 2;
   }
@@ -852,11 +906,11 @@ stage.addEventListener('pointermove', (e) => {
     if (sel && !sel.isCollapsed) { g.kind = 'ignore'; return; }
     if (g.type === 'mouse') {                            // mouse drags select text; they only pan on blank space when zoomed
       const onText = g.target.closest?.('.textLayer span');
-      if (R.zoom <= 1.02 || onText) { g.kind = 'ignore'; return; }
+      if (!zoomedIn() || onText) { g.kind = 'ignore'; return; }
     }
-    g.kind = R.zoom > 1.02 ? 'pan' : Math.abs(dx) > Math.abs(dy) * 0.9 ? 'swipe' : 'ignore';
+    g.kind = zoomedIn() ? 'pan' : Math.abs(dx) > Math.abs(dy) * 0.9 ? 'swipe' : 'ignore';
     if (g.kind === 'ignore') return;
-    if (g.kind === 'pan') prepNeighbours();
+    prepNeighbours(g.kind === 'pan' || settings.fitText);   // turning from zoomed in lands at fit-text size
     try { stage.setPointerCapture(e.pointerId); } catch {}
     stage.classList.add('dragging');
     clearTimeout(R.tapTimer); R.lastTap = null;
@@ -881,7 +935,7 @@ stage.addEventListener('pointermove', (e) => {
     }
     const t = R.cur + (over < 0 ? 1 : -1);
     if (over && (t < 0 || t >= R.slides.length)) over *= 0.28;
-    R.tx = cx; R.ty = cy;
+    R.tx = cx; R.ty = cy; R.atRest = false;
     g.off = over;
     applyTransform(false);
     setTrack(over);
@@ -921,13 +975,16 @@ function releaseDrag(g) {
     if (Math.abs(off) > W * 0.2) go = !(fast && Math.sign(vx) !== sgn);       // far enough, unless flicked back
     else if (fast && Math.sign(vx) === sgn && Math.abs(off) > 10) go = true;  // short but flicked
   }
-  if (go) return void settle(sgn < 0 ? 1 : -1, off);
+  if (go) {
+    if (g.kind === 'pan') fitTextForZoomedTurn();
+    return void settle(sgn < 0 ? 1 : -1, off);
+  }
   settle(0, off);
   if (g.kind === 'pan') glide(vx, vy);
 }
 
 function glide(vx, vy) {
-  if (Math.hypot(vx, vy) < 0.15) { renderHi(); learnInset(); return; }
+  if (Math.hypot(vx, vy) < 0.15) { renderHi(); return; }
   let last = performance.now();
   const step = (now) => {
     const dt = Math.min(now - last, 32); last = now;
@@ -939,7 +996,7 @@ function glide(vx, vy) {
     R.tx = nx; R.ty = ny;
     applyTransform(false);
     if (Math.hypot(vx, vy) < 0.4) hiFollow();             // slowing down: start sharpening before it stops
-    if (Math.hypot(vx, vy) > 0.03) R.glideRaf = requestAnimationFrame(step); else { renderHi(); learnInset(); }
+    if (Math.hypot(vx, vy) > 0.03) R.glideRaf = requestAnimationFrame(step); else renderHi();
   };
   R.glideRaf = requestAnimationFrame(step);
 }
@@ -959,18 +1016,22 @@ function movePinch() {
   const z = clamp(g.z0 * Math.hypot(a.x - b.x, a.y - b.y) / g.d0, 0.75, MAX_ZOOM * 1.1);
   const k = z / g.z0, cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
   R.zoom = z;
+  R.atRest = false;
   [R.tx, R.ty] = clampPan(cx - (g.cx0 - g.tx0) * k, cy - (g.cy0 - g.ty0) * k, z);
   applyTransform(false);
 }
 function endPinch() {
   stage.classList.remove('dragging');
-  if (R.zoom < 1.05) return zoomTo(1);
+  const rest = restView(curSlide()).z;
+  if (R.zoom < rest * 1.05) {                            // back at (or below) the resting size: settle there
+    if (rest > 1.05 && R.zoom < (1 + rest) / 2) return setFitText(false);   // pinched right out: whole pages
+    return goRest();
+  }
   R.zoom = Math.min(R.zoom, MAX_ZOOM);
   [R.tx, R.ty] = clampPan(R.tx, R.ty);
   applyTransform(true);
   renderHi();
-  learnInset();
-  emit('zoom', { zoom: R.zoom });
+  emitZoom();
 }
 document.addEventListener('gesturestart', (e) => e.preventDefault());
 
@@ -980,17 +1041,17 @@ function onTap(g, e) {
   const sel = getSelection();
   if (sel && !sel.isCollapsed) return;
   if (!settingsSheet.hidden) { settingsSheet.hidden = true; return; }
-  const x = e.clientX, y = e.clientY, zoomed = R.zoom > 1.02;
+  const x = e.clientX, y = e.clientY, zoomed = zoomedIn();
   const fx = x / innerWidth;
   const zone = zoomed ? 0.15 : 0.22;                    // narrower when zoomed, leaving room to double-tap out
   if (settings.tapTurn && (fx < zone || fx > 1 - zone)) {
     clearTimeout(R.tapTimer); R.lastTap = null;
-    return readingStep(fx < 0.5 ? -1 : 1);            // zoomed: a screen at a time; otherwise a page
+    return turn(fx < 0.5 ? -1 : 1);
   }
   const now = performance.now();
   if (R.lastTap && now - R.lastTap.t < 320 && Math.hypot(x - R.lastTap.x, y - R.lastTap.y) < 36) {
     clearTimeout(R.tapTimer); R.lastTap = null;
-    return zoomTo(zoomed ? 1 : TAP_ZOOM, x, y);
+    return zoomed ? goRest() : zoomTo(Math.max(TAP_ZOOM, R.zoom * 1.6), x, y);
   }
   R.lastTap = { t: now, x, y };
   R.tapTimer = setTimeout(() => { R.lastTap = null; setChrome(R.chromeHidden); emit('bars', { shown: !R.chromeHidden }); }, 260);
@@ -1004,8 +1065,9 @@ stage.addEventListener('wheel', (e) => {
   const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? R.vh : 1;
   const dx = e.deltaX * unit, dy = e.deltaY * unit;
   if (e.ctrlKey) return zoomTo(R.zoom * Math.exp(-dy * 0.01), e.clientX, e.clientY, false);
-  if (R.zoom > 1.02) {
+  if (zoomedIn()) {
     [R.tx, R.ty] = clampPan(R.tx - dx, R.ty - dy);
+    R.atRest = false;
     applyTransform(false);
     return hiFollow();
   }
@@ -1027,6 +1089,7 @@ function panKey(dx, dy) {
   const [nx, ny] = clampPan(R.tx + dx, R.ty + dy);
   const moved = nx !== R.tx || ny !== R.ty;
   R.tx = nx; R.ty = ny;
+  if (moved) R.atRest = false;
   applyTransform(true);
   scheduleHi();
   return moved;
@@ -1034,22 +1097,22 @@ function panKey(dx, dy) {
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!settingsSheet.hidden) { settingsSheet.hidden = true; return; }
-    if (topOverlay() === 'reader' && R.zoom > 1.02) return zoomTo(1);
+    if (topOverlay() === 'reader' && zoomedIn()) return goRest();
     if (topOverlay()) closeTop();
     return;
   }
   if (!R.open || topOverlay() !== 'reader' || e.target.closest?.('input,textarea,select')) return;
   const mod = e.metaKey || e.ctrlKey;
-  const zoomed = R.zoom > 1.02;
+  const zoomed = zoomedIn();
   const step = (dx, dy, dir) => { e.preventDefault(); if (!zoomed || !panKey(dx, dy)) turn(dir); };
   switch (e.key) {
     case 'ArrowRight': return step(-R.vw * 0.4, 0, 1);
     case 'ArrowLeft': return step(R.vw * 0.4, 0, -1);
     case 'ArrowDown': return step(0, -R.vh * 0.4, 1);
     case 'ArrowUp': return step(0, R.vh * 0.4, -1);
-    case 'PageDown': e.preventDefault(); return readingStep(1);
-    case 'PageUp': e.preventDefault(); return readingStep(-1);
-    case ' ': e.preventDefault(); return readingStep(e.shiftKey ? -1 : 1);
+    case 'PageDown': e.preventDefault(); return turn(1);
+    case 'PageUp': e.preventDefault(); return turn(-1);
+    case ' ': e.preventDefault(); return turn(e.shiftKey ? -1 : 1);
     case 'Home': return goToPage(1);
     case 'End': return goToPage(R.N);
     case '=': case '+': if (mod) { e.preventDefault(); zoomTo(R.zoom * 1.3); } return;
