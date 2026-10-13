@@ -1,0 +1,311 @@
+{
+ "version": 1,
+ "updated": "2026-10-13",
+ "shelves": [
+  {
+   "id": "start-here",
+   "title": "Start here"
+  },
+  {
+   "id": "love-stories",
+   "title": "Love stories"
+  },
+  {
+   "id": "mystery",
+   "title": "Mystery"
+  },
+  {
+   "id": "strange-and-spooky",
+   "title": "Strange and spooky"
+  },
+  {
+   "id": "short-reads",
+   "title": "Short reads"
+  },
+  {
+   "id": "adventure",
+   "title": "Adventure"
+  }
+ ],
+ "books": [
+  {
+   "id": "austen-pride-and-prejudice",
+   "title": "Pride and Prejudice",
+   "author": "Jane Austen",
+   "year": 1813,
+   "lang": "en",
+   "shelves": [
+    "start-here",
+    "love-stories"
+   ],
+   "blurb": "Elizabeth Bennet, her four sisters, and the proud Mr Darcy. Witty, warm and sharper than you remember.",
+   "words": 127371,
+   "minutes": 509,
+   "bytes": 9414734,
+   "sha256": "a37a4cad8a1da559e4784d278bf0d0f5eedbb555eef3fbd7d2dd0e23ccae24d1",
+   "file": "austen-pride-and-prejudice.epub",
+   "cover": "austen-pride-and-prejudice.svg"
+  },
+  {
+   "id": "doyle-the-adventures-of-sherlock-holmes",
+   "title": "The Adventures of Sherlock Holmes",
+   "author": "Arthur Conan Doyle",
+   "year": 1892,
+   "lang": "en",
+   "shelves": [
+    "start-here",
+    "mystery"
+   ],
+   "blurb": "Twelve cases for the world's first consulting detective, each one a short evening's read.",
+   "words": 104576,
+   "minutes": 418,
+   "bytes": 248878,
+   "sha256": "c2459d1f074e66694ae34e5851c50caaafcebafd815ca349e4f4951d8c12470f",
+   "file": "doyle-the-adventures-of-sherlock-holmes.epub",
+   "cover": "doyle-the-adventures-of-sherlock-holmes.svg"
+  },
+  {
+   "id": "shelley-frankenstein",
+   "title": "Frankenstein",
+   "author": "Mary Shelley",
+   "year": 1818,
+   "lang": "en",
+   "shelves": [
+    "start-here",
+    "strange-and-spooky"
+   ],
+   "blurb": "A young scientist builds a living creature and runs from what he has made.",
+   "words": 75063,
+   "minutes": 300,
+   "bytes": 207999,
+   "sha256": "e7b1a834b454712941d281b86a07e60584a03b819cfaf6aea1ba07ebad736a1e",
+   "file": "shelley-frankenstein.epub",
+   "cover": "shelley-frankenstein.svg"
+  },
+  {
+   "id": "carroll-alice-s-adventures-in-wonderland",
+   "title": "Alice's Adventures in Wonderland",
+   "author": "Lewis Carroll",
+   "year": 1865,
+   "lang": "en",
+   "shelves": [
+    "start-here",
+    "short-reads"
+   ],
+   "blurb": "Down the rabbit hole, into a world of mad tea parties and talking cards.",
+   "words": 26619,
+   "minutes": 106,
+   "bytes": 76679,
+   "sha256": "6c6ea48e8802c6e842776ae6c6a9be5d755fd659a6fc5c2d954daef73179e729",
+   "file": "carroll-alice-s-adventures-in-wonderland.epub",
+   "cover": "carroll-alice-s-adventures-in-wonderland.svg"
+  },
+  {
+   "id": "dickens-a-tale-of-two-cities",
+   "title": "A Tale of Two Cities",
+   "author": "Charles Dickens",
+   "year": 1859,
+   "lang": "en",
+   "shelves": [
+    "adventure"
+   ],
+   "blurb": "London and Paris in the years of the French Revolution: love, sacrifice and the guillotine.",
+   "words": 135985,
+   "minutes": 544,
+   "bytes": 1665933,
+   "sha256": "02f9654cbca574d60b7914950024ddf82d484be0ade2c3d18e0221c103453433",
+   "file": "dickens-a-tale-of-two-cities.epub",
+   "cover": "dickens-a-tale-of-two-cities.svg"
+  },
+  {
+   "id": "bronte-jane-eyre",
+   "title": "Jane Eyre",
+   "author": "Charlotte Brontë",
+   "year": 1847,
+   "lang": "en",
+   "shelves": [
+    "love-stories"
+   ],
+   "blurb": "An orphan governess, a brooding employer, and a secret in the attic.",
+   "words": 185368,
+   "minutes": 741,
+   "bytes": 911276,
+   "sha256": "0fb51553757ebde699bad7bd3b8c67e46b037ca910c01251539c04cc49dadbd7",
+   "file": "bronte-jane-eyre.epub",
+   "cover": "bronte-jane-eyre.svg"
+  },
+  {
+   "id": "bronte-wuthering-heights",
+   "title": "Wuthering Heights",
+   "author": "Emily Brontë",
+   "year": 1847,
+   "lang": "en",
+   "shelves": [
+    "love-stories"
+   ],
+   "blurb": "A wild love on the Yorkshire moors that turns to revenge across two generations.",
+   "words": 116046,
+   "minutes": 464,
+   "bytes": 326261,
+   "sha256": "d41a59529d66409fcb57f8d95b17682a6136a0bf06a247bbd566c5465b054947",
+   "file": "bronte-wuthering-heights.epub",
+   "cover": "bronte-wuthering-heights.svg"
+  },
+  {
+   "id": "twain-the-adventures-of-tom-sawyer",
+   "title": "The Adventures of Tom Sawyer",
+   "author": "Mark Twain",
+   "year": 1876,
+   "lang": "en",
+   "shelves": [
+    "adventure"
+   ],
+   "blurb": "Fences to whitewash, a murder in the graveyard, and a cave to get lost in.",
+   "words": 70905,
+   "minutes": 284,
+   "bytes": 11264766,
+   "sha256": "1af1fb336319daafd23ef2733e0a5f5879280c7dce8400892dc201286ee8bebf",
+   "file": "twain-the-adventures-of-tom-sawyer.epub",
+   "cover": "twain-the-adventures-of-tom-sawyer.svg"
+  },
+  {
+   "id": "stevenson-treasure-island",
+   "title": "Treasure Island",
+   "author": "Robert Louis Stevenson",
+   "year": 1883,
+   "lang": "en",
+   "shelves": [
+    "adventure"
+   ],
+   "blurb": "A treasure map, a one-legged cook and a ship full of pirates.",
+   "words": 68285,
+   "minutes": 273,
+   "bytes": 7874870,
+   "sha256": "a97d711ca0a692fc9456df4d961e16b9699c13b3cfb763dd91a485c147ad77cc",
+   "file": "stevenson-treasure-island.epub",
+   "cover": "stevenson-treasure-island.svg"
+  },
+  {
+   "id": "melville-moby-dick",
+   "title": "Moby-Dick",
+   "author": "Herman Melville",
+   "year": 1851,
+   "lang": "en",
+   "shelves": [
+    "adventure"
+   ],
+   "blurb": "Captain Ahab hunts the white whale that took his leg.",
+   "words": 213207,
+   "minutes": 853,
+   "bytes": 552559,
+   "sha256": "894126d1165d72c4146d2ee64f30cab439409051d5836f0d6daf68e1dce8ee2f",
+   "file": "melville-moby-dick.epub",
+   "cover": "melville-moby-dick.svg"
+  },
+  {
+   "id": "wells-the-time-machine",
+   "title": "The Time Machine",
+   "author": "H. G. Wells",
+   "year": 1895,
+   "lang": "en",
+   "shelves": [
+    "strange-and-spooky",
+    "short-reads"
+   ],
+   "blurb": "A Victorian inventor travels 800 thousand years into the future.",
+   "words": 32462,
+   "minutes": 130,
+   "bytes": 97640,
+   "sha256": "d9491745528df8f01fdc681b7830d7c97f34317a3f21bc72b63da34364ef0315",
+   "file": "wells-the-time-machine.epub",
+   "cover": "wells-the-time-machine.svg"
+  },
+  {
+   "id": "stoker-dracula",
+   "title": "Dracula",
+   "author": "Bram Stoker",
+   "year": 1897,
+   "lang": "en",
+   "shelves": [
+    "strange-and-spooky"
+   ],
+   "blurb": "Told in letters and diaries: a count from Transylvania comes to England.",
+   "words": 161189,
+   "minutes": 645,
+   "bytes": 386894,
+   "sha256": "ef41d8c8e310e6cf4e2fcc85335f47b079730e954200d01beb1dd7df7189eb4b",
+   "file": "stoker-dracula.epub",
+   "cover": "stoker-dracula.svg"
+  },
+  {
+   "id": "stevenson-the-strange-case-of-dr-jekyll-and-mr-hyde",
+   "title": "The Strange Case of Dr Jekyll and Mr Hyde",
+   "author": "Robert Louis Stevenson",
+   "year": 1886,
+   "lang": "en",
+   "shelves": [
+    "strange-and-spooky",
+    "short-reads"
+   ],
+   "blurb": "A respected doctor and the monster he becomes at night.",
+   "words": 25636,
+   "minutes": 103,
+   "bytes": 74702,
+   "sha256": "41507b33caae669437e5ea2ba8527b824683b9ce15850e0c3cf14bc8dbb92055",
+   "file": "stevenson-the-strange-case-of-dr-jekyll-and-mr-hyde.epub",
+   "cover": "stevenson-the-strange-case-of-dr-jekyll-and-mr-hyde.svg"
+  },
+  {
+   "id": "wilde-the-picture-of-dorian-gray",
+   "title": "The Picture of Dorian Gray",
+   "author": "Oscar Wilde",
+   "year": 1890,
+   "lang": "en",
+   "shelves": [
+    "strange-and-spooky"
+   ],
+   "blurb": "A beautiful young man stays young, while his portrait grows old and cruel.",
+   "words": 79027,
+   "minutes": 316,
+   "bytes": 205601,
+   "sha256": "1d3098f0d52888e05825aea8eddc86c6f72b4be2affdeafd20e9a61e10020d78",
+   "file": "wilde-the-picture-of-dorian-gray.epub",
+   "cover": "wilde-the-picture-of-dorian-gray.svg"
+  },
+  {
+   "id": "dickens-a-christmas-carol",
+   "title": "A Christmas Carol",
+   "author": "Charles Dickens",
+   "year": 1843,
+   "lang": "en",
+   "shelves": [
+    "short-reads"
+   ],
+   "blurb": "Three ghosts visit the miser Scrooge on Christmas Eve.",
+   "words": 28618,
+   "minutes": 114,
+   "bytes": 546728,
+   "sha256": "960b58d6f82f25b674860d6ef89cc91c677368e74df53afc6bc856de65b4ca4a",
+   "file": "dickens-a-christmas-carol.epub",
+   "cover": "dickens-a-christmas-carol.svg"
+  },
+  {
+   "id": "fitzgerald-the-great-gatsby",
+   "title": "The Great Gatsby",
+   "author": "F. Scott Fitzgerald",
+   "year": 1925,
+   "lang": "en",
+   "shelves": [
+    "love-stories",
+    "short-reads"
+   ],
+   "blurb": "Long Island, 1922: parties, money and a man waiting for the green light.",
+   "words": 48202,
+   "minutes": 193,
+   "bytes": 116175,
+   "sha256": "3d74042fe16207d3f151d3ac96a78c1970fa98ec3961fa8ec9437880a24a2d9b",
+   "file": "fitzgerald-the-great-gatsby.epub",
+   "cover": "fitzgerald-the-great-gatsby.svg"
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
+<rect width="600" height="900" fill="#6b2f4f"/>
+<rect x="34" y="34" width="532" height="832" fill="none" stroke="#f3e9d2" stroke-opacity=".55" stroke-width="2"/>
+<rect x="46" y="46" width="508" height="808" fill="none" stroke="#f3e9d2" stroke-opacity=".3" stroke-width="1"/>
+<text font-family="Georgia, 'Times New Roman', serif" font-size="64" fill="#f8f1e1" text-anchor="middle"><tspan x="300" y="322">The Adventures</tspan><tspan x="300" y="395">of Tom Sawyer</tspan></text>
+<line x1="250" x2="350" y1="479" y2="479" stroke="#f3e9d2" stroke-opacity=".7" stroke-width="2"/>
+<text x="300" y="760" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-style="italic" fill="#f3e9d2" text-anchor="middle">Mark Twain</text>
+</svg>
