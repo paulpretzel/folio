@@ -66,8 +66,9 @@ PAGES = [
     ('Zoom in', 'Make small text bigger.', [
         ('try', 'Double-tap anywhere on this page to zoom in. Double-tap again to zoom out.'),
         'You can also pinch with two fingers. While zoomed in, drag to look around the page.',
-        ('fine', 'You zoomed in. Folio keeps your zoom as you turn pages, '
-                 'so small print in textbooks and scanned books stays easy to read.'),
+        ('fine', 'You zoomed in. Turn the page from here and the next one opens with its '
+                 'margins trimmed, so the words fill the screen. The crop button at the top '
+                 'switches between that and whole pages.'),
     ]),
     ('Show the menus', 'The page fills your screen while you read.', [
         ('try', 'Tap the middle of the page to show the menus. Tap again to hide them.'),

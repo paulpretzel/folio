@@ -325,6 +325,7 @@ h1, h2, h3, h4 { margin: 0; }
 .chapter-text { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 15px; }
 .topbar-actions { display: flex; }
 .bm-btn.on svg { fill: var(--accent); stroke: var(--accent); }
+.fit-btn.on { color: var(--accent); background: var(--surface-2); }
 .bottombar {
   bottom: 0; padding: 8px calc(var(--sar) + 18px) calc(var(--sab) + 10px) calc(var(--sal) + 18px);
   border-top: 1px solid var(--line);
